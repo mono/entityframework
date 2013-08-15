@@ -1,9 +1,8 @@
 // Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
-namespace System.Data.Entity.ModelConfiguration.Conventions.UnitTests
+namespace System.Data.Entity.ModelConfiguration.Conventions
 {
     using System.Data.Entity.Core.Metadata.Edm;
-    using System.Data.Entity.ModelConfiguration.Edm;
     using System.Linq;
     using Xunit;
 
@@ -125,9 +124,9 @@ namespace System.Data.Entity.ModelConfiguration.Conventions.UnitTests
 
         private static AssociationType CreateAssociationType()
         {
-            var associationType = new AssociationType();
-            associationType.SourceEnd = new AssociationEndMember("S", new EntityType());
-            associationType.TargetEnd = new AssociationEndMember("T", new EntityType());
+            var associationType = new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace);
+            associationType.SourceEnd = new AssociationEndMember("S", new EntityType("E", "N", DataSpace.CSpace));
+            associationType.TargetEnd = new AssociationEndMember("T", new EntityType("E", "N", DataSpace.CSpace));
 
             associationType.SourceEnd.RelationshipMultiplicity = RelationshipMultiplicity.ZeroOrOne;
 

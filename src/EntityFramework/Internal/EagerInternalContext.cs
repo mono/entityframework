@@ -43,7 +43,10 @@ namespace System.Data.Entity.Internal
         /// <param name="objectContext">
         ///     The existing <see cref="ObjectContext" /> .
         /// </param>
-        public EagerInternalContext(DbContext owner, ObjectContext objectContext, bool objectContextOwned)
+        public EagerInternalContext(
+            DbContext owner,
+            ObjectContext objectContext,
+            bool objectContextOwned)
             : base(owner)
         {
             DebugCheck.NotNull(objectContext);
@@ -51,6 +54,8 @@ namespace System.Data.Entity.Internal
             _objectContext = objectContext;
             _objectContextOwned = objectContextOwned;
             _originalConnectionString = InternalConnection.GetStoreConnectionString(_objectContext.Connection);
+
+            _objectContext.InterceptionContext = _objectContext.InterceptionContext.WithDbContext(owner);
 
             InitializeEntitySetMappings();
         }
@@ -218,6 +223,22 @@ namespace System.Data.Entity.Internal
         {
             get { return ObjectContextInUse.ContextOptions.ProxyCreationEnabled; }
             set { ObjectContextInUse.ContextOptions.ProxyCreationEnabled = value; }
+        }
+
+        /// <summary>
+        ///     Gets or sets a value indicating whether C# null comparison behavior is enabled.  This is just a wrapper
+        ///     over the same flag in the underlying ObjectContext.
+        /// </summary>
+        public override bool UseDatabaseNullSemantics
+        {
+            get { return !ObjectContextInUse.ContextOptions.UseCSharpNullComparisonBehavior; }
+            set { ObjectContextInUse.ContextOptions.UseCSharpNullComparisonBehavior = !value; }
+        }
+
+        public override int? CommandTimeout
+        {
+            get { return ObjectContextInUse.CommandTimeout; }
+            set { ObjectContextInUse.CommandTimeout = value; }
         }
 
         #endregion

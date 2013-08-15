@@ -1,11 +1,8 @@
 // Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
-namespace System.Data.Entity.ModelConfiguration.Edm.Serialization.UnitTests
+namespace System.Data.Entity.ModelConfiguration.Edm.Serialization
 {
-    using System.Data.Entity.Core.Metadata;
     using System.Data.Entity.Core.Metadata.Edm;
-    
-    using System.Data.Entity.ModelConfiguration.Edm.Common;
     using System.Data.Entity.ModelConfiguration.Edm.Services;
     using System.Reflection;
     using System.Xml;
@@ -16,9 +13,23 @@ namespace System.Data.Entity.ModelConfiguration.Edm.Serialization.UnitTests
     public sealed class EdmxSerializerTests
     {
         [Fact]
+        public void Serialize_should_return_valid_edmx_xml_v1()
+        {
+            var databaseMapping = CreateSimpleModel(XmlConstants.StoreVersionForV1);
+            var edmx = new XDocument();
+
+            using (var xmlWriter = edmx.CreateWriter())
+            {
+                new EdmxSerializer().Serialize(databaseMapping, ProviderRegistry.Sql2008_ProviderInfo, xmlWriter);
+            }
+
+            edmx.Validate(LoadEdmxSchemaSet(1), (_, e) => { throw e.Exception; });
+        }
+
+        [Fact]
         public void Serialize_should_return_valid_edmx_xml_v2()
         {
-            var databaseMapping = CreateSimpleModel(2.0);
+            var databaseMapping = CreateSimpleModel(XmlConstants.StoreVersionForV2);
             var edmx = new XDocument();
 
             using (var xmlWriter = edmx.CreateWriter())
@@ -32,7 +43,7 @@ namespace System.Data.Entity.ModelConfiguration.Edm.Serialization.UnitTests
         [Fact]
         public void Serialize_should_return_valid_edmx_xml_v3()
         {
-            var databaseMapping = CreateSimpleModel(3.0);
+            var databaseMapping = CreateSimpleModel(XmlConstants.StoreVersionForV3);
             var edmx = new XDocument();
 
             using (var xmlWriter = edmx.CreateWriter())

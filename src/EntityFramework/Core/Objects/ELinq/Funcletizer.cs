@@ -174,29 +174,29 @@ namespace System.Data.Entity.Core.Objects.ELinq
             var candidates = new HashSet<Expression>();
             var cannotBeNominated = false;
             Func<Expression, Func<Expression, Expression>, Expression> visit = (exp, baseVisit) =>
-                                                                                   {
-                                                                                       if (exp != null)
-                                                                                       {
-                                                                                           var saveCannotBeNominated = cannotBeNominated;
-                                                                                           cannotBeNominated = false;
-                                                                                           baseVisit(exp);
-                                                                                           if (!cannotBeNominated)
-                                                                                           {
-                                                                                               // everyone below me can be nominated, so
-                                                                                               // see if this one can be also
-                                                                                               if (localCriterion(exp))
-                                                                                               {
-                                                                                                   candidates.Add(exp);
-                                                                                               }
-                                                                                               else
-                                                                                               {
-                                                                                                   cannotBeNominated = true;
-                                                                                               }
-                                                                                           }
-                                                                                           cannotBeNominated |= saveCannotBeNominated;
-                                                                                       }
-                                                                                       return exp;
-                                                                                   };
+                {
+                    if (exp != null)
+                    {
+                        var saveCannotBeNominated = cannotBeNominated;
+                        cannotBeNominated = false;
+                        baseVisit(exp);
+                        if (!cannotBeNominated)
+                        {
+                            // everyone below me can be nominated, so
+                            // see if this one can be also
+                            if (localCriterion(exp))
+                            {
+                                candidates.Add(exp);
+                            }
+                            else
+                            {
+                                cannotBeNominated = true;
+                            }
+                        }
+                        cannotBeNominated |= saveCannotBeNominated;
+                    }
+                    return exp;
+                };
             EntityExpressionVisitor.Visit(expression, visit);
             return candidates.Contains;
         }
@@ -304,7 +304,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
             DebugCheck.NotNull(type);
 
             if (_rootContext.Perspective.TryGetTypeByName(
-                TypeSystem.GetNonNullableType(type).FullName,
+                TypeSystem.GetNonNullableType(type).FullNameWithNesting(),
                 false, // bIgnoreCase
                 out typeUsage)
                 &&
@@ -426,14 +426,14 @@ namespace System.Data.Entity.Core.Objects.ELinq
                     var parameters = new HashSet<ParameterExpression>();
                     Visit(
                         expression, (exp, baseVisit) =>
-                                        {
-                                            if (null != exp
-                                                && exp.NodeType == ExpressionType.Parameter)
-                                            {
-                                                parameters.Add((ParameterExpression)exp);
-                                            }
-                                            return baseVisit(exp);
-                                        });
+                            {
+                                if (null != exp
+                                    && exp.NodeType == ExpressionType.Parameter)
+                                {
+                                    parameters.Add((ParameterExpression)exp);
+                                }
+                                return baseVisit(exp);
+                            });
 
                     if (parameters.Count != 1)
                     {
@@ -511,7 +511,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
                 }
 
                 Expression result = null;
-                var inlineQuery = value as ObjectQuery;
+                var inlineQuery = (value as IQueryable).TryGetObjectQuery();
                 if (inlineQuery != null)
                 {
                     result = InlineObjectQuery(inlineQuery, expression.Type);
@@ -544,7 +544,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
             {
                 // Build a delegate that returns true when the inline value has changed.
                 // Outside of ObjectQuery, this amounts to a reference comparison.
-                var originalQuery = value as ObjectQuery;
+                var originalQuery = (value as IQueryable).TryGetObjectQuery();
                 if (null != originalQuery)
                 {
                     // For inline queries, we need to check merge options as well (it's mutable)
@@ -558,7 +558,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
                         _recompileRequiredDelegates.Add(
                             () =>
                                 {
-                                    var currentQuery = getValue() as ObjectQuery;
+                                    var currentQuery = (getValue() as IQueryable).TryGetObjectQuery();
                                     return !ReferenceEquals(originalQuery, currentQuery) ||
                                            currentQuery.QueryState.UserSpecifiedMergeOption != originalMergeOption;
                                 });

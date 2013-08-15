@@ -27,29 +27,34 @@ namespace System.Data.Entity.Core.Objects
         private readonly EntitySet _singleEntitySet;
         private readonly TypeUsage _resultItemType;
         private readonly bool _readerOwned;
+        private readonly bool _shouldReleaseConnection;
         private IBindingList _cachedBindingList;
         private NextResultGenerator _nextResultGenerator;
         private Action<object, EventArgs> _onReaderDispose;
 
         internal ObjectResult(Shaper<T> shaper, EntitySet singleEntitySet, TypeUsage resultItemType)
-            : this(shaper, singleEntitySet, resultItemType, readerOwned: true)
-        {
-        }
-
-        internal ObjectResult(Shaper<T> shaper, EntitySet singleEntitySet, TypeUsage resultItemType, bool readerOwned)
-            : this(shaper, singleEntitySet, resultItemType, readerOwned, nextResultGenerator: null, onReaderDispose: null)
+            : this(shaper, singleEntitySet, resultItemType, readerOwned: true, shouldReleaseConnection: true)
         {
         }
 
         internal ObjectResult(
-            Shaper<T> shaper, EntitySet singleEntitySet, TypeUsage resultItemType, bool readerOwned, NextResultGenerator nextResultGenerator,
-            Action<object, EventArgs> onReaderDispose)
+            Shaper<T> shaper, EntitySet singleEntitySet, TypeUsage resultItemType, bool readerOwned, bool shouldReleaseConnection)
+            : this(
+                shaper, singleEntitySet, resultItemType, readerOwned, shouldReleaseConnection, nextResultGenerator: null,
+                onReaderDispose: null)
+        {
+        }
+
+        internal ObjectResult(
+            Shaper<T> shaper, EntitySet singleEntitySet, TypeUsage resultItemType, bool readerOwned,
+            bool shouldReleaseConnection, NextResultGenerator nextResultGenerator, Action<object, EventArgs> onReaderDispose)
         {
             _shaper = shaper;
             _reader = _shaper.Reader;
             _singleEntitySet = singleEntitySet;
             _resultItemType = resultItemType;
             _readerOwned = readerOwned;
+            _shouldReleaseConnection = shouldReleaseConnection;
             _nextResultGenerator = nextResultGenerator;
             _onReaderDispose = onReaderDispose;
         }
@@ -63,7 +68,8 @@ namespace System.Data.Entity.Core.Objects
             }
         }
 
-        /// <inheritdoc />
+        /// <summary>Returns an enumerator that iterates through the query results.</summary>
+        /// <returns>An enumerator that iterates through the query results.</returns>
         public IEnumerator<T> GetEnumerator()
         {
             return GetDbEnumerator();
@@ -113,7 +119,9 @@ namespace System.Data.Entity.Core.Objects
             {
                 // This case includes when the ObjectResult is disposed before it 
                 // created an ObjectQueryEnumeration; at this time, the connection can be released
-                if (_shaper.Context != null && _readerOwned)
+                if (_shaper.Context != null
+                    && _readerOwned
+                    && _shouldReleaseConnection)
                 {
                     _shaper.Context.ReleaseConnection();
                 }
@@ -156,9 +164,15 @@ namespace System.Data.Entity.Core.Objects
 
         internal override ObjectResult<TElement> GetNextResultInternal<TElement>()
         {
-            return null != _nextResultGenerator ? _nextResultGenerator.GetNextResult<TElement>(_reader) : null;
+            return null != _nextResultGenerator ? _nextResultGenerator.GetNextResult<TElement>(_reader, _shouldReleaseConnection) : null;
         }
 
+        /// <summary>
+        ///     Gets the type of the <see cref="T:System.Data.Entity.Core.Objects.ObjectResult`1" />.
+        /// </summary>
+        /// <returns>
+        ///     A <see cref="T:System.Type" /> that is the type of the <see cref="T:System.Data.Entity.Core.Objects.ObjectResult`1" />.
+        /// </returns>
         public override Type ElementType
         {
             get { return typeof(T); }

@@ -203,26 +203,27 @@ namespace System.Data.Entity.Core.Objects.ELinq
             private static IEnumerable<CallTranslator> GetCallTranslators()
             {
                 return new CallTranslator[]
-                           {
-                               new CanonicalFunctionDefaultTranslator(),
-                               new AsUnicodeFunctionTranslator(),
-                               new AsNonUnicodeFunctionTranslator(),
-                               new MathPowerTranslator(),
-                               new GuidNewGuidTranslator(),
-                               new StringContainsTranslator(),
-                               new StartsWithTranslator(),
-                               new EndsWithTranslator(),
-                               new IndexOfTranslator(),
-                               new SubstringTranslator(),
-                               new RemoveTranslator(),
-                               new InsertTranslator(),
-                               new IsNullOrEmptyTranslator(),
-                               new StringConcatTranslator(),
-                               new TrimTranslator(),
-                               new TrimStartTranslator(),
-                               new TrimEndTranslator(),
-                               new SpatialMethodCallTranslator(),
-                           };
+                    {
+                        new CanonicalFunctionDefaultTranslator(),
+                        new AsUnicodeFunctionTranslator(),
+                        new AsNonUnicodeFunctionTranslator(),
+                        new MathTruncateTranslator(),
+                        new MathPowerTranslator(),
+                        new GuidNewGuidTranslator(),
+                        new StringContainsTranslator(),
+                        new StartsWithTranslator(),
+                        new EndsWithTranslator(),
+                        new IndexOfTranslator(),
+                        new SubstringTranslator(),
+                        new RemoveTranslator(),
+                        new InsertTranslator(),
+                        new IsNullOrEmptyTranslator(),
+                        new StringConcatTranslator(),
+                        new TrimTranslator(),
+                        new TrimStartTranslator(),
+                        new TrimEndTranslator(),
+                        new SpatialMethodCallTranslator(),
+                    };
             }
 
             private static IEnumerable<SequenceMethodTranslator> GetSequenceMethodTranslators()
@@ -675,9 +676,8 @@ namespace System.Data.Entity.Core.Objects.ELinq
                 internal CqtExpression TranslateFunctionCall(
                     ExpressionConverter parent, MethodCallExpression call, DbFunctionAttribute functionAttribute)
                 {
-                    //Validate that the attribute parameters are not null or empty
-                    ValidateFunctionAttributeParameter(call, functionAttribute.NamespaceName, "namespaceName");
-                    ValidateFunctionAttributeParameter(call, functionAttribute.FunctionName, "functionName");
+                    Debug.Assert(!string.IsNullOrWhiteSpace(functionAttribute.NamespaceName));
+                    Debug.Assert(!string.IsNullOrWhiteSpace(functionAttribute.FunctionName));
 
                     // Translate the inputs
                     var arguments =
@@ -890,22 +890,6 @@ namespace System.Data.Entity.Core.Objects.ELinq
                     }
                     return result;
                 }
-
-                /// <summary>
-                ///     Validates that the given parameterValue is not null or empty.
-                /// </summary>
-                /// <param name="call"> </param>
-                /// <param name="parameterValue"> </param>
-                /// <param name="parameterName"> </param>
-                internal static void ValidateFunctionAttributeParameter(
-                    MethodCallExpression call, string parameterValue, string parameterName)
-                {
-                    if (String.IsNullOrEmpty(parameterValue))
-                    {
-                        throw new NotSupportedException(
-                            Strings.ELinq_DbFunctionAttributeParameterNameNotValid(call.Method, call.Method.DeclaringType, parameterName));
-                    }
-                }
             }
 
             private sealed class CanonicalFunctionDefaultTranslator : CallTranslator
@@ -918,47 +902,47 @@ namespace System.Data.Entity.Core.Objects.ELinq
                 private static IEnumerable<MethodInfo> GetMethods()
                 {
                     var result = new List<MethodInfo>
-                                     {
-                                         //Math functions
-                                         typeof(Math).GetMethod(
-                                             "Ceiling", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(decimal) }, null),
-                                         typeof(Math).GetMethod(
-                                             "Ceiling", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(double) }, null),
-                                         typeof(Math).GetMethod(
-                                             "Floor", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(decimal) }, null),
-                                         typeof(Math).GetMethod(
-                                             "Floor", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(double) }, null),
-                                         typeof(Math).GetMethod(
-                                             "Round", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(decimal) }, null),
-                                         typeof(Math).GetMethod(
-                                             "Round", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(double) }, null),
-                                         typeof(Math).GetMethod(
-                                             "Round", BindingFlags.Public | BindingFlags.Static, null,
-                                             new[] { typeof(decimal), typeof(int) }, null),
-                                         typeof(Math).GetMethod(
-                                             "Round", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(double), typeof(int) },
-                                             null),
-                                         //Decimal functions
-                                         typeof(Decimal).GetMethod(
-                                             "Floor", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(decimal) }, null),
-                                         typeof(Decimal).GetMethod(
-                                             "Ceiling", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(decimal) }, null),
-                                         typeof(Decimal).GetMethod(
-                                             "Round", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(decimal) }, null),
-                                         typeof(Decimal).GetMethod(
-                                             "Round", BindingFlags.Public | BindingFlags.Static, null,
-                                             new[] { typeof(decimal), typeof(int) }, null),
-                                         //String functions
-                                         typeof(String).GetMethod(
-                                             "Replace", BindingFlags.Public | BindingFlags.Instance, null,
-                                             new[] { typeof(String), typeof(String) }, null),
-                                         typeof(String).GetMethod(
-                                             "ToLower", BindingFlags.Public | BindingFlags.Instance, null, new Type[] { }, null),
-                                         typeof(String).GetMethod(
-                                             "ToUpper", BindingFlags.Public | BindingFlags.Instance, null, new Type[] { }, null),
-                                         typeof(String).GetMethod(
-                                             "Trim", BindingFlags.Public | BindingFlags.Instance, null, new Type[] { }, null),
-                                     };
+                        {
+                            //Math functions
+                            typeof(Math).GetMethod(
+                                "Ceiling", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(decimal) }, null),
+                            typeof(Math).GetMethod(
+                                "Ceiling", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(double) }, null),
+                            typeof(Math).GetMethod(
+                                "Floor", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(decimal) }, null),
+                            typeof(Math).GetMethod(
+                                "Floor", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(double) }, null),
+                            typeof(Math).GetMethod(
+                                "Round", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(decimal) }, null),
+                            typeof(Math).GetMethod(
+                                "Round", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(double) }, null),
+                            typeof(Math).GetMethod(
+                                "Round", BindingFlags.Public | BindingFlags.Static, null,
+                                new[] { typeof(decimal), typeof(int) }, null),
+                            typeof(Math).GetMethod(
+                                "Round", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(double), typeof(int) },
+                                null),
+                            //Decimal functions
+                            typeof(Decimal).GetMethod(
+                                "Floor", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(decimal) }, null),
+                            typeof(Decimal).GetMethod(
+                                "Ceiling", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(decimal) }, null),
+                            typeof(Decimal).GetMethod(
+                                "Round", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(decimal) }, null),
+                            typeof(Decimal).GetMethod(
+                                "Round", BindingFlags.Public | BindingFlags.Static, null,
+                                new[] { typeof(decimal), typeof(int) }, null),
+                            //String functions
+                            typeof(String).GetMethod(
+                                "Replace", BindingFlags.Public | BindingFlags.Instance, null,
+                                new[] { typeof(String), typeof(String) }, null),
+                            typeof(String).GetMethod(
+                                "ToLower", BindingFlags.Public | BindingFlags.Instance, null, new Type[] { }, null),
+                            typeof(String).GetMethod(
+                                "ToUpper", BindingFlags.Public | BindingFlags.Instance, null, new Type[] { }, null),
+                            typeof(String).GetMethod(
+                                "Trim", BindingFlags.Public | BindingFlags.Instance, null, new Type[] { }, null),
+                        };
 
                     // Math.Abs
                     foreach (
@@ -1049,6 +1033,11 @@ namespace System.Data.Entity.Core.Objects.ELinq
                     yield return
                         typeof(DbFunctions).GetMethod(
                             AsUnicode, BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(string) }, null);
+                    yield return
+#pragma warning disable 612,618
+                        typeof(EntityFunctions).GetMethod(
+#pragma warning restore 612,618
+                            AsUnicode, BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(string) }, null);
                 }
             }
 
@@ -1064,20 +1053,50 @@ namespace System.Data.Entity.Core.Objects.ELinq
                     yield return
                         typeof(DbFunctions).GetMethod(
                             AsNonUnicode, BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(string) }, null);
+                    yield return
+#pragma warning disable 612,618
+                        typeof(EntityFunctions).GetMethod(
+#pragma warning restore 612,618
+                            AsNonUnicode, BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(string) }, null);
                 }
             }
 
             #region System.Math method translators
 
+            private sealed class MathTruncateTranslator : CallTranslator
+            {
+                internal MathTruncateTranslator()
+                    : base(new[]
+                        {
+                            typeof(Math).GetMethod(
+                                "Truncate", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(decimal) }, null),
+                            typeof(Math).GetMethod(
+                                "Truncate", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(double) }, null)
+                        })
+                {      
+                }
+
+                // Translation:
+                //      Truncate(arg1)		     -> Truncate(arg1, 0)
+                internal override CqtExpression Translate(ExpressionConverter parent, MethodCallExpression call)
+                {
+                    Debug.Assert(call.Arguments.Count == 1, "Expecting 1 argument for Math.Truncate");
+
+                    var arg1 = parent.TranslateExpression(call.Arguments[0]);
+                    var zeroDigits = DbExpressionBuilder.Constant(0); 
+                    return arg1.Truncate(zeroDigits);
+                }
+            }
+
             private sealed class MathPowerTranslator : CallTranslator
             {
                 internal MathPowerTranslator()
                     : base(new[]
-                               {
-                                   typeof(Math).GetMethod(
-                                       "Pow", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(double), typeof(double) },
-                                       null),
-                               })
+                        {
+                            typeof(Math).GetMethod(
+                                "Pow", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(double), typeof(double) },
+                                null),
+                        })
                 {
                 }
 
@@ -1097,10 +1116,10 @@ namespace System.Data.Entity.Core.Objects.ELinq
             {
                 internal GuidNewGuidTranslator()
                     : base(new[]
-                               {
-                                   typeof(Guid).GetMethod("NewGuid", BindingFlags.Public | BindingFlags.Static, null, Type.EmptyTypes, null)
-                                   ,
-                               })
+                        {
+                            typeof(Guid).GetMethod("NewGuid", BindingFlags.Public | BindingFlags.Static, null, Type.EmptyTypes, null)
+                            ,
+                        })
                 {
                 }
 
@@ -1717,14 +1736,14 @@ namespace System.Data.Entity.Core.Objects.ELinq
                 private const string s_FirstWeekOfYearFullName = "Microsoft.VisualBasic.FirstWeekOfYear";
 
                 private static readonly HashSet<string> _supportedIntervals = new HashSet<string>
-                                                                                  {
-                                                                                      Year,
-                                                                                      Month,
-                                                                                      Day,
-                                                                                      Hour,
-                                                                                      Minute,
-                                                                                      Second
-                                                                                  };
+                    {
+                        Year,
+                        Month,
+                        Day,
+                        Hour,
+                        Minute,
+                        Second
+                    };
 
                 internal VBDatePartTranslator(Assembly vbAssembly)
                     : base(GetMethods(vbAssembly))
@@ -2674,10 +2693,12 @@ namespace System.Data.Entity.Core.Objects.ELinq
                         var arguments = ((DbNewInstanceExpression)source).Arguments;
                         if (arguments.Count > 0)
                         {
-                            var useCSharpNullComparisonBehavior = parent._funcletizer.RootContext.ContextOptions.UseCSharpNullComparisonBehavior;
+                            var useCSharpNullComparisonBehavior =
+                                parent._funcletizer.RootContext.ContextOptions.UseCSharpNullComparisonBehavior;
                             var providerSupportsInExpression = parent.ProviderManifest.SupportsInExpression();
 
-                            if (!useCSharpNullComparisonBehavior && !providerSupportsInExpression)
+                            if (!useCSharpNullComparisonBehavior
+                                && !providerSupportsInExpression)
                             {
                                 return TranslateContainsHelper(
                                     parent, value, arguments, EqualsPattern.Store, sourceArgumentType, valueExpression.Type);

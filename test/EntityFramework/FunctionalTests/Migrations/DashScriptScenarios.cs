@@ -5,7 +5,6 @@ namespace System.Data.Entity.Migrations
     using System.Data.Entity.Migrations.Design;
     using System.Data.Entity.Migrations.Infrastructure;
     using Xunit;
-    using Xunit.Extensions;
 
     [Variant(DatabaseProvider.SqlClient, ProgrammingLanguage.CSharp)]
     [Variant(DatabaseProvider.SqlServerCe, ProgrammingLanguage.CSharp)]
@@ -62,10 +61,19 @@ namespace System.Data.Entity.Migrations
             Assert.False(script.Contains("AutomaticMigration"));
         }
 
-        [MigrationsTheory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void Can_script_windows(bool whenDatabaseExists)
+        [MigrationsTheory(SlowGroup = TestGroup.MigrationsTests)]
+        public void Can_script_windows_whenDatabaseExists_true()
+        {
+            Can_script_windows(true);
+        }
+
+        [MigrationsTheory(SlowGroup = TestGroup.MigrationsTests)]
+        public void Can_script_windows_whenDatabaseExists_false()
+        {
+            Can_script_windows(false);
+        }
+
+        private void Can_script_windows(bool whenDatabaseExists)
         {
             ResetDatabase();
 
@@ -120,18 +128,27 @@ namespace System.Data.Entity.Migrations
         }
 
         [MigrationsTheory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void Can_script_first_migration_with_leading_automatic_migration(bool whenDatabaseExists)
+        public void Can_script_first_migration_with_leading_automatic_migration_whenDatabaseExists_true()
+        {
+            Can_script_first_migration_with_leading_automatic_migration(true);
+        }
+
+        [MigrationsTheory]
+        public void Can_script_first_migration_with_leading_automatic_migration_whenDatabaseExists_false()
+        {
+            Can_script_first_migration_with_leading_automatic_migration(false);
+        }
+
+        private void Can_script_first_migration_with_leading_automatic_migration(bool whenDatabaseExists)
         {
             ResetDatabase();
 
-            CreateMigrator<ShopContext_v1>().Update();
+            CreateMigrator<ShopContext_v2>().Update();
 
-            var migrator1 = CreateMigrator<ShopContext_v2>();
+            var migrator1 = CreateMigrator<ShopContext_v3>();
             var version2 = new MigrationScaffolder(migrator1.Configuration).Scaffold("Version2");
 
-            var migrator2 = CreateMigrator<ShopContext_v2>(scaffoldedMigrations: version2);
+            var migrator2 = CreateMigrator<ShopContext_v3>(scaffoldedMigrations: version2);
 
             migrator2.Update();
 
@@ -141,7 +158,7 @@ namespace System.Data.Entity.Migrations
             }
 
             var scriptingDecorator
-                = new MigratorScriptingDecorator(CreateMigrator<ShopContext_v2>(scaffoldedMigrations: version2));
+                = new MigratorScriptingDecorator(CreateMigrator<ShopContext_v3>(scaffoldedMigrations: version2));
 
             // Act
             var script = scriptingDecorator.ScriptUpdate(DbMigrator.InitialDatabase, version2.MigrationId);
@@ -153,9 +170,18 @@ namespace System.Data.Entity.Migrations
         }
 
         [MigrationsTheory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void Can_script_middle_migration_with_leading_automatic_migration(bool whenDatabaseExists)
+        public void Can_script_middle_migration_with_leading_automatic_migration_whenDatabaseExists_true()
+        {
+            Can_script_middle_migration_with_leading_automatic_migration(true);
+        }
+
+        [MigrationsTheory]
+        public void Can_script_middle_migration_with_leading_automatic_migration_whenDatabaseExists_false()
+        {
+            Can_script_middle_migration_with_leading_automatic_migration(false);
+        }
+
+        private void Can_script_middle_migration_with_leading_automatic_migration(bool whenDatabaseExists)
         {
             ResetDatabase();
 
@@ -192,9 +218,18 @@ namespace System.Data.Entity.Migrations
         }
 
         [MigrationsTheory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void Can_script_last_migration_with_trailing_automatic_migration(bool whenDatabaseExists)
+        public void Can_script_last_migration_with_trailing_automatic_migration_whenDatabaseExists_true()
+        {
+            Can_script_last_migration_with_trailing_automatic_migration(true);
+        }
+
+        [MigrationsTheory]
+        public void Can_script_last_migration_with_trailing_automatic_migration_whenDatabaseExists_false()
+        {
+            Can_script_last_migration_with_trailing_automatic_migration(false);
+        }
+
+        private void Can_script_last_migration_with_trailing_automatic_migration(bool whenDatabaseExists)
         {
             ResetDatabase();
 
@@ -202,7 +237,9 @@ namespace System.Data.Entity.Migrations
             var version1 = new MigrationScaffolder(migrator1.Configuration).Scaffold("Version1");
 
             var migrator2 = CreateMigrator<ShopContext_v2>(automaticDataLossEnabled: true, scaffoldedMigrations: version1);
+            
             migrator2.Update();
+            
             var scriptingDecorator = new MigratorScriptingDecorator(migrator2);
 
             if (!whenDatabaseExists)
@@ -220,9 +257,18 @@ namespace System.Data.Entity.Migrations
         }
 
         [MigrationsTheory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void Can_script_trailing_automatic_migration(bool whenDatabaseExists)
+        public void Can_script_trailing_automatic_migration_whenDatabaseExists_true()
+        {
+            Can_script_trailing_automatic_migration(true);
+        }
+
+        [MigrationsTheory]
+        public void Can_script_trailing_automatic_migration_whenDatabaseExists_false()
+        {
+            Can_script_trailing_automatic_migration(false);
+        }
+
+        private void Can_script_trailing_automatic_migration(bool whenDatabaseExists)
         {
             ResetDatabase();
 
@@ -268,9 +314,18 @@ namespace System.Data.Entity.Migrations
         }
 
         [MigrationsTheory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void Can_script_using_migration_names(bool whenDatabaseExists)
+        public void Can_script_using_migration_names_whenDatabaseExists_true()
+        {
+            Can_script_using_migration_names(true);
+        }
+
+        [MigrationsTheory]
+        public void Can_script_using_migration_names_whenDatabaseExists_false()
+        {
+            Can_script_using_migration_names(false);
+        }
+
+        private void Can_script_using_migration_names(bool whenDatabaseExists)
         {
             ResetDatabase();
 

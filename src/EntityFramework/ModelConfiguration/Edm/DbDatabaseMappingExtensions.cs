@@ -25,7 +25,7 @@ namespace System.Data.Entity.ModelConfiguration.Edm
             databaseMapping.Model = model;
             databaseMapping.Database = database;
 
-            databaseMapping.EntityContainerMappings.Add(new StorageEntityContainerMapping(model.Containers.Single()));
+            databaseMapping.AddEntityContainerMapping(new StorageEntityContainerMapping(model.Containers.Single()));
 
             return databaseMapping;
         }
@@ -39,10 +39,14 @@ namespace System.Data.Entity.ModelConfiguration.Edm
             var storeItemCollection = new StoreItemCollection(databaseMapping.Database);
             var storageMappingItemCollection = databaseMapping.ToStorageMappingItemCollection(itemCollection, storeItemCollection);
 
-            return new MetadataWorkspace(
+            var workspace = new MetadataWorkspace(
                 () => itemCollection,
                 () => storeItemCollection,
                 () => storageMappingItemCollection);
+
+            new CodeFirstOSpaceLoader().LoadTypes(itemCollection, (ObjectItemCollection)workspace.GetItemCollection(DataSpace.OSpace));
+
+            return workspace;
         }
 
         [SuppressMessage("Microsoft.Reliability", "CA2000:Dispose objects before losing scope")]
@@ -58,9 +62,9 @@ namespace System.Data.Entity.ModelConfiguration.Edm
 
             using (var xmlWriter = XmlWriter.Create(
                 stringBuilder, new XmlWriterSettings
-                                   {
-                                       Indent = true
-                                   }))
+                    {
+                        Indent = true
+                    }))
             {
                 new MslSerializer().Serialize(databaseMapping, xmlWriter);
             }
@@ -77,43 +81,62 @@ namespace System.Data.Entity.ModelConfiguration.Edm
             DebugCheck.NotNull(databaseMapping);
             DebugCheck.NotNull(entityType);
 
-            var mappings = databaseMapping.GetEntityTypeMappings(entityType).ToList();
+            var mappings = databaseMapping.GetEntityTypeMappings(entityType);
 
-            if (mappings.Count() <= 1)
+            if (mappings.Count <= 1)
             {
-                return mappings.SingleOrDefault();
+                return mappings.FirstOrDefault();
             }
 
             // Return the property mapping
             return mappings.SingleOrDefault(m => m.IsHierarchyMapping);
         }
 
-        public static IEnumerable<StorageEntityTypeMapping> GetEntityTypeMappings(
+        public static IList<StorageEntityTypeMapping> GetEntityTypeMappings(
             this DbDatabaseMapping databaseMapping, EntityType entityType)
         {
             DebugCheck.NotNull(databaseMapping);
             DebugCheck.NotNull(entityType);
 
-            return (from esm in databaseMapping.EntityContainerMappings.Single().EntitySetMappings
-                    from etm in esm.EntityTypeMappings
-                    where etm.EntityType == entityType
-                    select etm);
+            // please don't convert this section of code to a Linq expression since
+            // it is performance sensitive, especially for larger models.
+            var mappings = new List<StorageEntityTypeMapping>();
+            foreach (var esm in databaseMapping.EntityContainerMappings.Single().EntitySetMappings)
+            {
+                foreach (var etm in esm.EntityTypeMappings)
+                {
+                    if (etm.EntityType == entityType)
+                    {
+                        mappings.Add(etm);
+                    }
+                }
+            }
+            return mappings;
         }
 
         public static StorageEntityTypeMapping GetEntityTypeMapping(
-            this DbDatabaseMapping databaseMapping, Type entityType)
+            this DbDatabaseMapping databaseMapping, Type clrType)
         {
             DebugCheck.NotNull(databaseMapping);
-            DebugCheck.NotNull(entityType);
+            DebugCheck.NotNull(clrType);
 
-            var mappings = (from esm in databaseMapping.EntityContainerMappings.Single().EntitySetMappings
-                            from etm in esm.EntityTypeMappings
-                            where etm.GetClrType() == entityType
-                            select etm);
-
-            if (mappings.Count() <= 1)
+            // please don't convert this section of code to a Linq expression since
+            // it is performance sensitive, especially for larger models.
+            var mappings = new List<StorageEntityTypeMapping>();
+            foreach (var esm in databaseMapping.EntityContainerMappings.Single().EntitySetMappings)
             {
-                return mappings.SingleOrDefault();
+                foreach (var etm in esm.EntityTypeMappings)
+                {
+                    if (etm.GetClrType() == clrType)
+                    {
+                        mappings.Add(etm);
+                    }
+                }
+            }
+
+            if (mappings.Count <= 1)
+            {
+                return mappings.FirstOrDefault();
             }
 
             // Return the property mapping
@@ -135,6 +158,23 @@ namespace System.Data.Entity.ModelConfiguration.Edm
                                 p => p.IsComplexType
                                      && p.ComplexType.GetClrType() == complexType)
                    select Tuple.Create(epm, etmf.Table);
+        }
+
+        public static IEnumerable<StorageModificationFunctionParameterBinding> GetComplexParameterBindings(
+            this DbDatabaseMapping databaseMapping, Type complexType)
+        {
+            DebugCheck.NotNull(databaseMapping);
+            DebugCheck.NotNull(complexType);
+
+            return from esm in databaseMapping.GetEntitySetMappings()
+                   from mfm in esm.ModificationFunctionMappings
+                   from pb in mfm.PrimaryParameterBindings
+                   where pb.MemberPath.Members
+                           .OfType<EdmProperty>()
+                           .Any(
+                               p => p.IsComplexType
+                                    && p.ComplexType.GetClrType() == complexType)
+                   select pb;
         }
 
         public static StorageEntitySetMapping GetEntitySetMapping(

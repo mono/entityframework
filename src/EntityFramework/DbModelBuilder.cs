@@ -16,6 +16,7 @@ namespace System.Data.Entity
     using System.Data.Entity.ModelConfiguration.Conventions.Sets;
     using System.Data.Entity.ModelConfiguration.Edm;
     using System.Data.Entity.ModelConfiguration.Mappers;
+    using System.Data.Entity.ModelConfiguration.Utilities;
     using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
     using System.Diagnostics.CodeAnalysis;
@@ -97,6 +98,7 @@ namespace System.Data.Entity
                 case DbModelBuilderVersion.V4_1:
                     return V1ConventionSet.Conventions;
                 case DbModelBuilderVersion.V5_0:
+                case DbModelBuilderVersion.V6_0:
                 case DbModelBuilderVersion.Latest:
                     return V2ConventionSet.Conventions;
                 default:
@@ -154,13 +156,15 @@ namespace System.Data.Entity
         }
 
         /// <summary>
-        ///     Configures the default database schema name. The default database schema name is used
-        ///     when resolving database objects that do not have an explicitly configured schema name.
+        ///     Configures the default database schema name. This default database schema name is used
+        ///     for database objects that do not have an explicitly configured schema name.
         /// </summary>
         /// <param name="schema"> The name of the default database schema. </param>
-        public virtual void HasDefaultSchema(string schema)
+        public virtual DbModelBuilder HasDefaultSchema(string schema)
         {
             _modelConfiguration.DefaultSchema = schema;
+
+            return this;
         }
 
         /// <summary>
@@ -350,9 +354,11 @@ namespace System.Data.Entity
             DebugCheck.NotNull(providerManifest);
             DebugCheck.NotNull(providerInfo);
 
-            var model = new EdmModel(DataSpace.CSpace, _modelBuilderVersion.GetEdmVersion());
-
-            model.ProviderInfo = providerInfo;
+            var model 
+                = new EdmModel(DataSpace.CSpace, _modelBuilderVersion.GetEdmVersion())
+                      {
+                          ProviderInfo = providerInfo
+                      };
 
             _conventionsConfiguration.ApplyModelConfiguration(_modelConfiguration);
 
@@ -398,7 +404,13 @@ namespace System.Data.Entity
         {
             DebugCheck.NotNull(model);
 
-            var typeMapper = new TypeMapper(new MappingContext(_modelConfiguration, _conventionsConfiguration, model));
+            var typeMapper = new TypeMapper(
+                                    new MappingContext(
+                                        _modelConfiguration,
+                                        _conventionsConfiguration,
+                                        model,
+                                        _modelBuilderVersion,
+                                        DbConfiguration.GetService<AttributeProvider>()));
 
             _modelConfiguration.Entities
                                .Where(type => typeMapper.MapEntityType(type) == null)
@@ -409,8 +421,6 @@ namespace System.Data.Entity
                                .Each(t => { throw Error.CodeFirstInvalidComplexType(t); });
         }
 
-        [SuppressMessage("Microsoft.Performance", "CA1811:AvoidUncalledPrivateCode",
-            Justification = "Used by test code.")]
         internal ModelConfiguration.Configuration.ModelConfiguration ModelConfiguration
         {
             get { return _modelConfiguration; }

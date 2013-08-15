@@ -69,7 +69,7 @@ namespace ProductivityApiUnitTests
     /// </summary>
     public class DbContextTests : TestBase
     {
-        static DbContextTests()
+        public DbContextTests()
         {
             // Ensure the basic-auth test user exists
 
@@ -422,12 +422,16 @@ END";
             }
         }
 
+        public class PersistEntity
+        {
+            public int Id { get; set; }
+        }
+
         [Fact]
         public void Can_initialize_database_when_using_secure_connection_string_with_sql_server_authentication_and_lazy_connection()
         {
             var connectionString
-                = SimpleConnectionStringWithCredentials(
-                    "PersistSecurityInfoContext",
+                = SimpleConnectionStringWithCredentials<PersistSecurityInfoContext>(
                     "EFTestUser",
                     "Password1");
 
@@ -451,8 +455,7 @@ END";
         public void Can_initialize_database_when_using_secure_connection_string_with_sql_server_authentication_and_eager_connection()
         {
             var connectionString
-                = SimpleConnectionStringWithCredentials(
-                    "PersistSecurityInfoContext",
+                = SimpleConnectionStringWithCredentials<PersistSecurityInfoContext>(
                     "EFTestUser",
                     "Password1");
 
@@ -478,8 +481,7 @@ END";
         public void Can_use_ddl_ops_when_using_secure_connection_string_with_sql_server_authentication_and_eager_context()
         {
             var connectionString
-                = SimpleConnectionStringWithCredentials(
-                    "PersistSecurityInfoContext",
+                = SimpleConnectionStringWithCredentials<PersistSecurityInfoContext>(
                     "EFTestUser",
                     "Password1");
 
@@ -688,7 +690,7 @@ END";
         public void ProviderName_gets_name_from_internal_connection_ProviderName_when_lazy_context_is_used()
         {
             var mockConnection = new Mock<IInternalConnection>();
-            var mockContext = new Mock<LazyInternalContext>(new Mock<DbContext>().Object, mockConnection.Object, null, null)
+            var mockContext = new Mock<LazyInternalContext>(new Mock<DbContext>().Object, mockConnection.Object, null, null, null)
                                   {
                                       CallBase = true
                                   };
@@ -731,10 +733,40 @@ END";
         }
 
         #endregion
-    }
 
-    public class PersistEntity
-    {
-        public int Id { get; set; }
+        #region Other tests
+        public class UseDatabaseNullSemanticsDbContext : DbContext
+        {
+        }
+
+        [Fact]
+        public static void UseDatabaseNullSemantics_is_retrieved_and_set_correctly()
+        {
+            Database.SetInitializer<UseDatabaseNullSemanticsDbContext>(null);
+
+            using (var dbContext = new UseDatabaseNullSemanticsDbContext())
+            {
+                var objectContext = ((IObjectContextAdapter)dbContext).ObjectContext;
+
+                Assert.False(dbContext.Configuration.UseDatabaseNullSemantics);
+                Assert.True(objectContext.ContextOptions.UseCSharpNullComparisonBehavior);
+
+                dbContext.Configuration.UseDatabaseNullSemantics = true;
+
+                Assert.True(dbContext.Configuration.UseDatabaseNullSemantics);
+                Assert.False(objectContext.ContextOptions.UseCSharpNullComparisonBehavior);
+
+                dbContext.Configuration.UseDatabaseNullSemantics = false;
+
+                Assert.False(dbContext.Configuration.UseDatabaseNullSemantics);
+                Assert.True(objectContext.ContextOptions.UseCSharpNullComparisonBehavior);
+
+                objectContext.ContextOptions.UseCSharpNullComparisonBehavior = false;
+
+                Assert.True(dbContext.Configuration.UseDatabaseNullSemantics);
+                Assert.False(objectContext.ContextOptions.UseCSharpNullComparisonBehavior);
+            }
+        }
+        #endregion
     }
 }

@@ -37,8 +37,7 @@ namespace System.Data.Entity.Migrations.Model
                     = new DropIndexOperation(this)
                           {
                               Name = Name,
-                              Table = Table,
-                              IsSystem = IsSystem
+                              Table = Table
                           };
 
                 Columns.Each(c => dropIndexOperation.Columns.Add(c));

@@ -13,11 +13,14 @@ namespace System.Data.Entity.ModelConfiguration.Mappers
         private readonly ConventionsConfiguration _conventionsConfiguration;
         private readonly EdmModel _model;
         private readonly AttributeProvider _attributeProvider;
+        private readonly DbModelBuilderVersion _modelBuilderVersion;
 
         public MappingContext(
             ModelConfiguration modelConfiguration,
             ConventionsConfiguration conventionsConfiguration,
-            EdmModel model)
+            EdmModel model,
+            DbModelBuilderVersion modelBuilderVersion = DbModelBuilderVersion.Latest,
+            AttributeProvider attributeProvider = null)
         {
             DebugCheck.NotNull(modelConfiguration);
             DebugCheck.NotNull(conventionsConfiguration);
@@ -26,7 +29,8 @@ namespace System.Data.Entity.ModelConfiguration.Mappers
             _modelConfiguration = modelConfiguration;
             _conventionsConfiguration = conventionsConfiguration;
             _model = model;
-            _attributeProvider = new AttributeProvider();
+            _modelBuilderVersion = modelBuilderVersion;
+            _attributeProvider = attributeProvider ?? new AttributeProvider();
         }
 
         public ModelConfiguration ModelConfiguration
@@ -47,6 +51,11 @@ namespace System.Data.Entity.ModelConfiguration.Mappers
         public AttributeProvider AttributeProvider
         {
             get { return _attributeProvider; }
+        }
+
+        public DbModelBuilderVersion ModelBuilderVersion
+        {
+            get { return _modelBuilderVersion; }
         }
     }
 }

@@ -10,14 +10,12 @@ namespace ProductivityApiTests
     using System.Data.Entity.Infrastructure;
     using System.Linq;
     using System.Reflection;
+    using System.Threading;
     using AdvancedPatternsModel;
     using ConcurrencyModel;
     using SimpleModel;
     using Xunit;
 
-    /// <summary>
-    ///     Tests for the primary methods on DbContext.
-    /// </summary>
     public class DbSetTests : FunctionalTestBase
     {
         #region Positive query tests
@@ -147,10 +145,10 @@ namespace ProductivityApiTests
             using (var context = new SimpleModelContext())
             {
                 var addedProduct = new Product
-                                       {
-                                           Id = -1,
-                                           Name = "Daddies Sauce"
-                                       };
+                    {
+                        Id = -1,
+                        Name = "Daddies Sauce"
+                    };
                 context.Products.Add(addedProduct);
 
                 VerifyProduct(context, addedProduct, EntityState.Added);
@@ -163,10 +161,10 @@ namespace ProductivityApiTests
             using (var context = new SimpleModelContext())
             {
                 var addedProduct = new Product
-                                       {
-                                           Id = -1,
-                                           Name = "Daddies Sauce"
-                                       };
+                    {
+                        Id = -1,
+                        Name = "Daddies Sauce"
+                    };
                 context.Set(typeof(Product)).Add(addedProduct);
 
                 VerifyProduct(context, addedProduct, EntityState.Added);
@@ -179,10 +177,10 @@ namespace ProductivityApiTests
             using (var context = new SimpleModelContext())
             {
                 var addedProduct = new FeaturedProduct
-                                       {
-                                           Id = -1,
-                                           Name = "Salad Cream"
-                                       };
+                    {
+                        Id = -1,
+                        Name = "Salad Cream"
+                    };
                 context.Products.Add(addedProduct);
 
                 VerifyProduct(context, addedProduct, EntityState.Added);
@@ -195,10 +193,10 @@ namespace ProductivityApiTests
             using (var context = new SimpleModelContext())
             {
                 var addedProduct = new FeaturedProduct
-                                       {
-                                           Id = -1,
-                                           Name = "Salad Cream"
-                                       };
+                    {
+                        Id = -1,
+                        Name = "Salad Cream"
+                    };
                 context.Set(typeof(Product)).Add(addedProduct);
 
                 VerifyProduct(context, addedProduct, EntityState.Added);
@@ -211,10 +209,10 @@ namespace ProductivityApiTests
             using (var context = new SimpleModelContext())
             {
                 var addedProduct = new FeaturedProduct
-                                       {
-                                           Id = -1,
-                                           Name = "Piccalilli"
-                                       };
+                    {
+                        Id = -1,
+                        Name = "Piccalilli"
+                    };
                 context.Set<FeaturedProduct>().Add(addedProduct);
 
                 VerifyProduct(context, addedProduct, EntityState.Added);
@@ -227,13 +225,110 @@ namespace ProductivityApiTests
             using (var context = new SimpleModelContext())
             {
                 var addedProduct = new FeaturedProduct
-                                       {
-                                           Id = -1,
-                                           Name = "Piccalilli"
-                                       };
+                    {
+                        Id = -1,
+                        Name = "Piccalilli"
+                    };
                 context.Set(typeof(FeaturedProduct)).Add(addedProduct);
 
                 VerifyProduct(context, addedProduct, EntityState.Added);
+            }
+        }
+
+        [Fact]
+        public void AddRange_adds_entities_to_context()
+        {
+            using (var context = new SimpleModelContext())
+            {
+                var products = new[]
+                    {
+                        new Product
+                            {
+                                Id = 0,
+                                Name = "Daddies Sauce"
+                            },
+                        new Product
+                            {
+                                Id = 1,
+                                Name = "Gremolata Sauce"
+                            }
+                    };
+                context.Products.AddRange(products);
+
+                VerifyProducts(context, products, EntityState.Added);
+            }
+        }
+
+        [Fact]
+        public void Non_generic_AddRange_adds_entities_to_context()
+        {
+            using (var context = new SimpleModelContext())
+            {
+                var products = new[]
+                    {
+                        new Product
+                            {
+                                Id = 0,
+                                Name = "Daddies Sauce"
+                            },
+                        new Product
+                            {
+                                Id = 1,
+                                Name = "Gremolata Sauce"
+                            }
+                    };
+                context.Set(typeof(Product)).AddRange(products);
+
+                VerifyProducts(context, products, EntityState.Added);
+            }
+        }
+
+        [Fact]
+        public void AddRange_preserve_auto_detect_changes_flag()
+        {
+            using (var context = new SimpleModelContext())
+            {
+                var products = new[]
+                    {
+                        new Product
+                            {
+                                Id = 0,
+                                Name = "Daddies Sauce"
+                            },
+                        new Product
+                            {
+                                Id = 1,
+                                Name = "Gremolata Sauce"
+                            }
+                    };
+                context.Configuration.AutoDetectChangesEnabled = false;
+
+                context.Products.AddRange(products);
+
+                Assert.False(context.Configuration.AutoDetectChangesEnabled);
+            }
+        }
+
+        [Fact]
+        public void AddRange_preserve_auto_detect_changes_flag_if_throw()
+        {
+            using (var context = new SimpleModelContext())
+            {
+                var products = new[]
+                    {
+                        new Product
+                            {
+                                Id = 0,
+                                Name = "Daddies Sauce"
+                            },
+                        null /*Set.Add throw if entity is null*/
+                    };
+
+                context.Configuration.AutoDetectChangesEnabled = false;
+
+                Assert.Throws<ArgumentNullException>(() => { context.Products.AddRange(products); });
+
+                Assert.False(context.Configuration.AutoDetectChangesEnabled);
             }
         }
 
@@ -291,19 +386,19 @@ namespace ProductivityApiTests
             using (var context = new SimpleModelContext())
             {
                 var product = new Product
-                                  {
-                                      Id = 0,
-                                      Name = "Red Bull"
-                                  };
+                    {
+                        Id = 0,
+                        Name = "Red Bull"
+                    };
                 context.Products.Attach(product);
                 var category = new Category
-                                   {
-                                       Id = "Beverages",
-                                       Products = new List<Product>
-                                                      {
-                                                          product
-                                                      }
-                                   };
+                    {
+                        Id = "Beverages",
+                        Products = new List<Product>
+                            {
+                                product
+                            }
+                    };
 
                 Assert.Equal(null, product.Category);
                 Assert.Equal(null, product.CategoryId);
@@ -343,10 +438,10 @@ namespace ProductivityApiTests
             {
                 // Arrange
                 var addedProduct = new Product
-                                       {
-                                           Id = -1,
-                                           Name = "Marmite"
-                                       };
+                    {
+                        Id = -1,
+                        Name = "Marmite"
+                    };
                 context.Products.Add(addedProduct);
                 GetObjectContext(context).Detach(addedProduct);
 
@@ -368,9 +463,9 @@ namespace ProductivityApiTests
             {
                 // Arrange
                 var category = new Category
-                                   {
-                                       Id = "Something"
-                                   };
+                    {
+                        Id = "Something"
+                    };
 
                 // Act- Assert
                 context.Categories.Add(category);
@@ -401,10 +496,10 @@ namespace ProductivityApiTests
                 // Arrange
                 var binaryKey = new byte[] { 20, 21, 22, 23, 24 };
                 var whiteBoard = new Whiteboard
-                                     {
-                                         iD = binaryKey,
-                                         AssetTag = "First Board in my Office"
-                                     };
+                    {
+                        iD = binaryKey,
+                        AssetTag = "First Board in my Office"
+                    };
 
                 // Act- Assert
                 context.Whiteboards.Add(whiteBoard);
@@ -435,14 +530,14 @@ namespace ProductivityApiTests
             {
                 // Arrange
                 var category = new Category
-                                   {
-                                       Id = "Beverages"
-                                   };
+                    {
+                        Id = "Beverages"
+                    };
                 var product = new Product
-                                  {
-                                      Id = 0,
-                                      Name = "Red Bull"
-                                  };
+                    {
+                        Id = 0,
+                        Name = "Red Bull"
+                    };
                 category.Products.Add(product);
 
                 // Act
@@ -597,15 +692,15 @@ namespace ProductivityApiTests
             {
                 // Arrange
                 var category = new Category
-                                   {
-                                       Id = "Beverages"
-                                   };
+                    {
+                        Id = "Beverages"
+                    };
                 var product = new Product
-                                  {
-                                      Id = 0,
-                                      Name = "Red Bull",
-                                      CategoryId = "Beverages"
-                                  };
+                    {
+                        Id = 0,
+                        Name = "Red Bull",
+                        CategoryId = "Beverages"
+                    };
                 category.Products.Add(product);
 
                 switch (principalState)
@@ -836,15 +931,15 @@ namespace ProductivityApiTests
             {
                 // Arrange 
                 var office = new Office
-                                 {
-                                     BuildingId = Guid.NewGuid(),
-                                     Number = "18/1111"
-                                 };
+                    {
+                        BuildingId = Guid.NewGuid(),
+                        Number = "18/1111"
+                    };
                 var whiteBoard = new Whiteboard
-                                     {
-                                         iD = new byte[] { 1, 2, 3, 4 },
-                                         AssetTag = "ABCDX0009"
-                                     };
+                    {
+                        iD = new byte[] { 1, 2, 3, 4 },
+                        AssetTag = "ABCDX0009"
+                    };
                 office.WhiteBoards.Add(whiteBoard);
 
                 switch (principalState)
@@ -956,10 +1051,10 @@ namespace ProductivityApiTests
             {
                 // Arrange
                 var product = new Product
-                                  {
-                                      Id = 0,
-                                      Name = "Red Bull"
-                                  };
+                    {
+                        Id = 0,
+                        Name = "Red Bull"
+                    };
                 switch (dependentState)
                 {
                     case EntityState.Added:
@@ -983,9 +1078,9 @@ namespace ProductivityApiTests
                 }
 
                 var category = new Category
-                                   {
-                                       Id = "Beverages"
-                                   };
+                    {
+                        Id = "Beverages"
+                    };
                 category.Products.Add(product);
 
                 // Assert fixup
@@ -1012,16 +1107,16 @@ namespace ProductivityApiTests
             using (var context = new SimpleModelContext())
             {
                 var product = new Product
-                                  {
-                                      Id = 0,
-                                      Name = "Red Bull"
-                                  };
+                    {
+                        Id = 0,
+                        Name = "Red Bull"
+                    };
                 context.Products.Add(product);
 
                 var category = new Category
-                                   {
-                                       Id = "Beverages"
-                                   };
+                    {
+                        Id = "Beverages"
+                    };
                 category.Products.Add(product);
 
                 Assert.Equal(null, product.Category);
@@ -1058,7 +1153,7 @@ namespace ProductivityApiTests
                 Assert.Equal(
                     "entity",
                     Assert.Throws<ArgumentNullException>(() => context.Set(typeof(Product)).Add(null)).
-                        ParamName);
+                           ParamName);
             }
         }
 
@@ -1069,17 +1164,17 @@ namespace ProductivityApiTests
             {
                 // Arrange
                 var product = new Product
-                                  {
-                                      Id = 0,
-                                      Name = "Red Bull"
-                                  };
+                    {
+                        Id = 0,
+                        Name = "Red Bull"
+                    };
                 context.Products.Attach(product);
                 context.Products.Remove(product);
 
                 var category = new Category
-                                   {
-                                       Id = "Beverages"
-                                   };
+                    {
+                        Id = "Beverages"
+                    };
                 category.Products.Add(product);
 
                 // Act - Assert
@@ -1098,10 +1193,10 @@ namespace ProductivityApiTests
             using (var context = new SimpleModelContext())
             {
                 var product = new Product
-                                  {
-                                      Id = -1,
-                                      Name = "Daddies Sauce"
-                                  };
+                    {
+                        Id = -1,
+                        Name = "Daddies Sauce"
+                    };
                 context.Products.Attach(product);
 
                 VerifyProduct(context, product, EntityState.Unchanged);
@@ -1114,10 +1209,10 @@ namespace ProductivityApiTests
             using (var context = new SimpleModelContext())
             {
                 var product = new Product
-                                  {
-                                      Id = -1,
-                                      Name = "Daddies Sauce"
-                                  };
+                    {
+                        Id = -1,
+                        Name = "Daddies Sauce"
+                    };
                 context.Set(typeof(Product)).Attach(product);
 
                 VerifyProduct(context, product, EntityState.Unchanged);
@@ -1130,10 +1225,10 @@ namespace ProductivityApiTests
             using (var context = new SimpleModelContext())
             {
                 var product = new FeaturedProduct
-                                  {
-                                      Id = -1,
-                                      Name = "Salad Cream"
-                                  };
+                    {
+                        Id = -1,
+                        Name = "Salad Cream"
+                    };
                 context.Products.Attach(product);
 
                 VerifyProduct(context, product, EntityState.Unchanged);
@@ -1146,10 +1241,10 @@ namespace ProductivityApiTests
             using (var context = new SimpleModelContext())
             {
                 var product = new FeaturedProduct
-                                  {
-                                      Id = -1,
-                                      Name = "Salad Cream"
-                                  };
+                    {
+                        Id = -1,
+                        Name = "Salad Cream"
+                    };
                 context.Set(typeof(Product)).Attach(product);
 
                 VerifyProduct(context, product, EntityState.Unchanged);
@@ -1162,10 +1257,10 @@ namespace ProductivityApiTests
             using (var context = new SimpleModelContext())
             {
                 var product = new FeaturedProduct
-                                  {
-                                      Id = -1,
-                                      Name = "Piccalilli"
-                                  };
+                    {
+                        Id = -1,
+                        Name = "Piccalilli"
+                    };
                 context.Set<FeaturedProduct>().Attach(product);
 
                 VerifyProduct(context, product, EntityState.Unchanged);
@@ -1178,10 +1273,10 @@ namespace ProductivityApiTests
             using (var context = new SimpleModelContext())
             {
                 var product = new FeaturedProduct
-                                  {
-                                      Id = -1,
-                                      Name = "Piccalilli"
-                                  };
+                    {
+                        Id = -1,
+                        Name = "Piccalilli"
+                    };
                 context.Set(typeof(FeaturedProduct)).Attach(product);
 
                 VerifyProduct(context, product, EntityState.Unchanged);
@@ -1243,11 +1338,11 @@ namespace ProductivityApiTests
             {
                 // Arrange
                 var insertedProduct = new FeaturedProduct
-                                          {
-                                              Id = -1,
-                                              Name = "Marmite",
-                                              PromotionalCode = "blah"
-                                          };
+                    {
+                        Id = -1,
+                        Name = "Marmite",
+                        PromotionalCode = "blah"
+                    };
                 context.Products.Add(insertedProduct);
                 GetObjectContext(context).Detach(insertedProduct);
                 Assert.Null(context.Products.Find(-1));
@@ -1267,15 +1362,15 @@ namespace ProductivityApiTests
             {
                 // Arrange
                 var category = new Category
-                                   {
-                                       Id = "Beverages"
-                                   };
+                    {
+                        Id = "Beverages"
+                    };
                 var product = new Product
-                                  {
-                                      Id = 0,
-                                      Name = "Red Bull",
-                                      CategoryId = "Beverages"
-                                  };
+                    {
+                        Id = 0,
+                        Name = "Red Bull",
+                        CategoryId = "Beverages"
+                    };
                 category.Products.Add(product);
 
                 // Act
@@ -1438,15 +1533,15 @@ namespace ProductivityApiTests
             {
                 // Arrange
                 var category = new Category
-                                   {
-                                       Id = "Beverages"
-                                   };
+                    {
+                        Id = "Beverages"
+                    };
                 var product = new Product
-                                  {
-                                      Id = 0,
-                                      Name = "Red Bull",
-                                      CategoryId = "Beverages"
-                                  };
+                    {
+                        Id = 0,
+                        Name = "Red Bull",
+                        CategoryId = "Beverages"
+                    };
                 category.Products.Add(product);
 
                 switch (principalState)
@@ -1699,16 +1794,16 @@ namespace ProductivityApiTests
             {
                 // Arrange 
                 var office = new Office
-                                 {
-                                     BuildingId = Guid.NewGuid(),
-                                     Number = "18/1111",
-                                     Description = DBNull.Value.ToString()
-                                 };
+                    {
+                        BuildingId = Guid.NewGuid(),
+                        Number = "18/1111",
+                        Description = DBNull.Value.ToString()
+                    };
                 var whiteBoard = new Whiteboard
-                                     {
-                                         iD = new byte[] { 1, 2, 3, 4 },
-                                         AssetTag = "ABCDX0009"
-                                     };
+                    {
+                        iD = new byte[] { 1, 2, 3, 4 },
+                        AssetTag = "ABCDX0009"
+                    };
                 office.WhiteBoards.Add(whiteBoard);
 
                 switch (principalState)
@@ -1838,11 +1933,11 @@ namespace ProductivityApiTests
             {
                 // Arrange
                 var product = new Product
-                                  {
-                                      Id = 0,
-                                      Name = "Red Bull",
-                                      CategoryId = "Beverages"
-                                  };
+                    {
+                        Id = 0,
+                        Name = "Red Bull",
+                        CategoryId = "Beverages"
+                    };
                 switch (dependentState)
                 {
                     case EntityState.Added:
@@ -1866,9 +1961,9 @@ namespace ProductivityApiTests
                 }
 
                 var category = new Category
-                                   {
-                                       Id = "Beverages"
-                                   };
+                    {
+                        Id = "Beverages"
+                    };
                 category.Products.Add(product);
 
                 // Assert fixup
@@ -1919,7 +2014,7 @@ namespace ProductivityApiTests
                 Assert.Equal(
                     "entity",
                     Assert.Throws<ArgumentNullException>(() => context.Set(typeof(Product)).Attach(null)).
-                        ParamName);
+                           ParamName);
             }
         }
 
@@ -1952,16 +2047,16 @@ namespace ProductivityApiTests
             using (var context = new SimpleModelContext())
             {
                 var category = new Category
-                                   {
-                                       Id = "Spreads"
-                                   };
+                    {
+                        Id = "Spreads"
+                    };
 
                 // Note that the FK has not been set on the dependent, thereby creating an inconsistency 
                 var product = new Product
-                                  {
-                                      Id = 0,
-                                      Name = "Vegemite"
-                                  };
+                    {
+                        Id = 0,
+                        Name = "Vegemite"
+                    };
                 category.Products.Add(product);
 
                 Assert.Throws<InvalidOperationException>(() => context.Categories.Attach(category)).ValidateMessage(
@@ -2009,10 +2104,10 @@ namespace ProductivityApiTests
             using (var context = new SimpleModelContext())
             {
                 var product = new Product
-                                  {
-                                      Id = -1,
-                                      Name = "Haggis"
-                                  };
+                    {
+                        Id = -1,
+                        Name = "Haggis"
+                    };
                 context.Products.Add(product);
 
                 context.Products.Remove(product);
@@ -2033,10 +2128,10 @@ namespace ProductivityApiTests
             using (var context = new SimpleModelContext())
             {
                 var product = new FeaturedProduct
-                                  {
-                                      Id = -1,
-                                      Name = "Haggis"
-                                  };
+                    {
+                        Id = -1,
+                        Name = "Haggis"
+                    };
                 context.Products.Attach(product);
 
                 Assert.Equal(EntityState.Unchanged, GetStateEntry(context, product).State);
@@ -2051,10 +2146,10 @@ namespace ProductivityApiTests
             using (var context = new SimpleModelContext())
             {
                 var product = new FeaturedProduct
-                                  {
-                                      Id = -1,
-                                      Name = "Haggis"
-                                  };
+                    {
+                        Id = -1,
+                        Name = "Haggis"
+                    };
                 context.Set<FeaturedProduct>().Attach(product);
 
                 Assert.Equal(EntityState.Unchanged, GetStateEntry(context, product).State);
@@ -2069,10 +2164,10 @@ namespace ProductivityApiTests
             using (var context = new SimpleModelContext())
             {
                 var product = new FeaturedProduct
-                                  {
-                                      Id = -1,
-                                      Name = "Ginger Cookies"
-                                  };
+                    {
+                        Id = -1,
+                        Name = "Ginger Cookies"
+                    };
 
                 //Insert into base set and delete from derived set
                 context.Products.Attach(product);
@@ -2083,10 +2178,10 @@ namespace ProductivityApiTests
             using (var context = new SimpleModelContext())
             {
                 var product = new FeaturedProduct
-                                  {
-                                      Id = -1,
-                                      Name = "Ginger Cookies"
-                                  };
+                    {
+                        Id = -1,
+                        Name = "Ginger Cookies"
+                    };
 
                 //Insert into derived set and delete from base set
                 context.Set<FeaturedProduct>().Attach(product);
@@ -2101,15 +2196,15 @@ namespace ProductivityApiTests
             using (var context = new AdvancedPatternsMasterContext())
             {
                 var building = new Building
-                                   {
-                                       BuildingId = Guid.NewGuid(),
-                                       Name = "Building 35"
-                                   };
+                    {
+                        BuildingId = Guid.NewGuid(),
+                        Name = "Building 35"
+                    };
                 var mailroom = new MailRoom
-                                   {
-                                       id = 1,
-                                       BuildingId = building.BuildingId
-                                   };
+                    {
+                        id = 1,
+                        BuildingId = building.BuildingId
+                    };
 
                 building.MailRooms.Add(mailroom);
 
@@ -2135,15 +2230,15 @@ namespace ProductivityApiTests
             {
                 // Arrange
                 var category = new Category
-                                   {
-                                       Id = "Beverages"
-                                   };
+                    {
+                        Id = "Beverages"
+                    };
                 var product = new Product
-                                  {
-                                      Id = 0,
-                                      Name = "RedBull",
-                                      CategoryId = "Beverages"
-                                  };
+                    {
+                        Id = 0,
+                        Name = "RedBull",
+                        CategoryId = "Beverages"
+                    };
                 category.Products.Add(product);
 
                 context.Categories.Attach(category);
@@ -2158,6 +2253,98 @@ namespace ProductivityApiTests
                 Assert.Equal(0, category.Products.Count);
                 Assert.Null(product.Category);
                 Assert.Null(product.CategoryId);
+            }
+        }
+
+        [Fact]
+        public void RemoveRange_delete_entities_to_context()
+        {
+            using (var context = new SimpleModelContext())
+            {
+                var productDaddies = new Product { Id = 0, Name = "Daddies Sauce" };
+                var productGremolata = new Product { Id = 1, Name = "Gremolata Sauce" };
+
+                context.Entry(productDaddies).State = EntityState.Unchanged;
+                context.Entry(productGremolata).State = EntityState.Unchanged;
+
+                var products = new Product[] { productDaddies, productGremolata };
+
+                context.Products.RemoveRange(products);
+
+                VerifyProducts(context, products, EntityState.Deleted);
+            }
+        }
+
+        [Fact]
+        public void Non_generic_RemoveRange_delete_entities_from_context()
+        {
+            using (var context = new SimpleModelContext())
+            {
+                var productDaddies = new Product { Id = 0, Name = "Daddies Sauce" };
+                var productGremolata = new Product { Id = 1, Name = "Gremolata Sauce" };
+
+                context.Entry(productDaddies).State = EntityState.Unchanged;
+                context.Entry(productGremolata).State = EntityState.Unchanged;
+
+                var products = new Product[] { productDaddies, productGremolata };
+
+                context.Set(typeof(Product)).RemoveRange(products);
+
+                VerifyProducts(context, products, EntityState.Deleted);
+            }
+        }
+        [Fact]
+        public void RemoveRange_preserve_auto_detect_changes_flag()
+        {
+            using (var context = new SimpleModelContext())
+            {
+                var productDaddies = new Product { Id = 0, Name = "Daddies Sauce" };
+                var productGremolata = new Product { Id = 1, Name = "Gremolata Sauce" };
+
+                context.Entry(productDaddies).State = EntityState.Unchanged;
+                context.Entry(productGremolata).State = EntityState.Unchanged;
+
+                var products = new Product[] { productDaddies, productGremolata };
+
+                context.Configuration.AutoDetectChangesEnabled = false;
+
+                context.Products.RemoveRange(products);
+
+                Assert.False(context.Configuration.AutoDetectChangesEnabled);
+            }
+        }
+
+        [Fact]
+        public void RemoveRange_preserve_auto_detect_changes_flag_if_throw()
+        {
+            using (var context = new SimpleModelContext())
+            {
+                var productDaddies = new Product { Id = 0, Name = "Daddies Sauce" };
+
+                context.Entry(productDaddies).State = EntityState.Unchanged;
+
+                var products = new Product[] { productDaddies, null/*throw if item is null*/ };
+
+                context.Configuration.AutoDetectChangesEnabled = false;
+
+                Assert.Throws<ArgumentNullException>(() => { context.Products.RemoveRange(products); });
+                Assert.False(context.Configuration.AutoDetectChangesEnabled);
+            }
+        }
+
+        [Fact]
+        public void RemoveRange_throw_if_item_is_not_exist_in_object_state_manager()
+        {
+            using (var context = new SimpleModelContext())
+            {
+                var productDaddies = new Product { Id = 0, Name = "Daddies Sauce" };
+
+                var products = new Product[] { productDaddies };
+
+                Assert.Throws<InvalidOperationException>(() =>
+                {
+                    context.Products.RemoveRange(products);
+                });
             }
         }
 
@@ -2300,15 +2487,15 @@ namespace ProductivityApiTests
             {
                 // Arrange
                 var category = new Category
-                                   {
-                                       Id = "Beverages"
-                                   };
+                    {
+                        Id = "Beverages"
+                    };
                 var product = new Product
-                                  {
-                                      Id = 0,
-                                      Name = "Red Bull",
-                                      CategoryId = "Beverages"
-                                  };
+                    {
+                        Id = 0,
+                        Name = "Red Bull",
+                        CategoryId = "Beverages"
+                    };
                 category.Products.Add(product);
 
                 // Arranging principal object in the required state
@@ -2466,7 +2653,7 @@ namespace ProductivityApiTests
                 Assert.Equal(
                     "entity",
                     Assert.Throws<ArgumentNullException>(() => context.Set(typeof(Product)).Remove(null)).
-                        ParamName);
+                           ParamName);
             }
         }
 
@@ -2476,9 +2663,9 @@ namespace ProductivityApiTests
             using (var context = new SimpleModelContext())
             {
                 var product = new Product
-                                  {
-                                      Name = "Digestive Biscuits"
-                                  };
+                    {
+                        Name = "Digestive Biscuits"
+                    };
                 Assert.Throws<InvalidOperationException>(() => context.Products.Remove(product)).ValidateMessage(
                     "ObjectContext_CannotDeleteEntityNotInObjectStateManager");
             }
@@ -2490,11 +2677,11 @@ namespace ProductivityApiTests
             using (var context = new SimpleModelContext())
             {
                 var product = new Product
-                                  {
-                                      Name = "Digestive Biscuits"
-                                  };
+                    {
+                        Name = "Digestive Biscuits"
+                    };
                 Assert.Throws<InvalidOperationException>(() => context.Set(typeof(Product)).Remove(product)).
-                    ValidateMessage("ObjectContext_CannotDeleteEntityNotInObjectStateManager");
+                       ValidateMessage("ObjectContext_CannotDeleteEntityNotInObjectStateManager");
             }
         }
 
@@ -2580,15 +2767,15 @@ namespace ProductivityApiTests
             {
                 // Arrange 
                 var office = new Office
-                                 {
-                                     BuildingId = Guid.NewGuid(),
-                                     Number = "18/1111"
-                                 };
+                    {
+                        BuildingId = Guid.NewGuid(),
+                        Number = "18/1111"
+                    };
                 var whiteBoard = new Whiteboard
-                                     {
-                                         iD = new byte[] { 1, 2, 3, 4 },
-                                         AssetTag = "ABCDX0009"
-                                     };
+                    {
+                        iD = new byte[] { 1, 2, 3, 4 },
+                        AssetTag = "ABCDX0009"
+                    };
                 office.WhiteBoards.Add(whiteBoard);
 
                 switch (principalState)
@@ -2754,14 +2941,14 @@ namespace ProductivityApiTests
             {
                 // Arrange
                 var category = new Category
-                                   {
-                                       Id = "Beverages"
-                                   };
+                    {
+                        Id = "Beverages"
+                    };
                 var product = new Product
-                                  {
-                                      Id = 0,
-                                      Name = "Red Bull"
-                                  };
+                    {
+                        Id = 0,
+                        Name = "Red Bull"
+                    };
                 category.Products.Add(product);
 
                 switch (principalState)
@@ -3024,7 +3211,7 @@ namespace ProductivityApiTests
 #if !NET40
                 var asyncEnumerator = ((IDbAsyncEnumerable)nonGenericQuery).GetAsyncEnumerator();
 
-                Assert.True(asyncEnumerator.MoveNextAsync().Result);
+                Assert.True(asyncEnumerator.MoveNextAsync(CancellationToken.None).Result);
 
                 Assert.Same(query.First(), asyncEnumerator.Current);
 #endif
@@ -3117,6 +3304,43 @@ namespace ProductivityApiTests
             }
         }
 
+        public class SpecialCharacters : DbContext
+        {
+            public SpecialCharacters()
+            {
+                Database.SetInitializer(new SpecialCharactersInitializer());
+            }
+
+            public DbSet<Länder> Länder { get; set; }
+        }
+
+        public class Länder
+        {
+            [DatabaseGenerated(DatabaseGeneratedOption.None)]
+            public int Id { get; set; }
+
+            public string Näme { get; set; }
+        }
+
+        public class SpecialCharactersInitializer : DropCreateDatabaseAlways<SpecialCharacters>
+        {
+            protected override void Seed(SpecialCharacters context)
+            {
+                context.Länder.Add(
+                    new Länder
+                        {
+                            Id = 1,
+                            Näme = "A"
+                        });
+                context.Länder.Add(
+                    new Länder
+                        {
+                            Id = 2,
+                            Näme = "B"
+                        });
+            }
+        }
+
         #endregion
 
         #region Using Set, etc with proxy types (Dev11 307937)
@@ -3154,17 +3378,17 @@ namespace ProductivityApiTests
                 // to the generic Set for the proxy type.
                 Assert.Throws<InvalidOperationException>(
                     () =>
+                    {
+                        try
                         {
-                            try
-                            {
-                                setMethod.Invoke(context, null);
-                            }
-                            catch (TargetInvocationException ex)
-                            {
-                                throw ex.InnerException;
-                            }
-                            ;
-                        }).ValidateMessage("CannotCallGenericSetWithProxyType");
+                            setMethod.Invoke(context, null);
+                        }
+                        catch (TargetInvocationException ex)
+                        {
+                            throw ex.InnerException;
+                        }
+                        ;
+                    }).ValidateMessage("CannotCallGenericSetWithProxyType");
             }
         }
 
@@ -3280,10 +3504,10 @@ namespace ProductivityApiTests
             using (var context = new SimpleModelContext())
             {
                 var product = new Product
-                                  {
-                                      Id = -1,
-                                      Name = "Haggis"
-                                  };
+                    {
+                        Id = -1,
+                        Name = "Haggis"
+                    };
                 context.Products.Add(product);
                 GetObjectContext(context).ObjectStateManager.ChangeObjectState(product, initialState);
 
@@ -3322,10 +3546,10 @@ namespace ProductivityApiTests
             using (var context = new SimpleModelContext())
             {
                 var product = new Product
-                                  {
-                                      Id = -1,
-                                      Name = "Haggis"
-                                  };
+                    {
+                        Id = -1,
+                        Name = "Haggis"
+                    };
                 context.Set(typeof(Product)).Add(product);
                 GetObjectContext(context).ObjectStateManager.ChangeObjectState(product, initialState);
 
@@ -3345,47 +3569,22 @@ namespace ProductivityApiTests
             Assert.Equal(1, GetStateEntries(context).Count());
         }
 
+        private void VerifyProducts(SimpleModelContext context, IEnumerable<Product> products, EntityState expectedState)
+        {
+            var first = context.Products.Find(0);
+            var last = context.Products.Find(1);
+
+            Assert.Same(products.First(), first);
+            Assert.Equal(0, products.First().Id);
+            Assert.Equal(expectedState, GetStateEntry(context, products.First()).State);
+
+            Assert.Same(products.Last(), last);
+            Assert.Equal(1, products.Last().Id);
+            Assert.Equal(expectedState, GetStateEntry(context, products.Last()).State);
+
+            Assert.Equal(2, GetStateEntries(context).Count());
+        }
+
         #endregion
     }
-
-    #region Model with special characters
-
-    public class SpecialCharacters : DbContext
-    {
-        public SpecialCharacters()
-        {
-            Database.SetInitializer(new SpecialCharactersInitializer());
-        }
-
-        public DbSet<Länder> Länder { get; set; }
-    }
-
-    public class Länder
-    {
-        [DatabaseGenerated(DatabaseGeneratedOption.None)]
-        public int Id { get; set; }
-
-        public string Näme { get; set; }
-    }
-
-    public class SpecialCharactersInitializer : DropCreateDatabaseAlways<SpecialCharacters>
-    {
-        protected override void Seed(SpecialCharacters context)
-        {
-            context.Länder.Add(
-                new Länder
-                    {
-                        Id = 1,
-                        Näme = "A"
-                    });
-            context.Länder.Add(
-                new Länder
-                    {
-                        Id = 2,
-                        Näme = "B"
-                    });
-        }
-    }
-
-    #endregion
 }

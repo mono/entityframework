@@ -1,5 +1,6 @@
 ﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
+
 #if !NET40
 
 namespace ProductivityApiTests
@@ -9,7 +10,6 @@ namespace ProductivityApiTests
     using System.Data.Entity.Infrastructure;
     using System.IO;
     using System.Linq;
-    using System.Transactions;
     using SimpleModel;
     using Xunit;
 
@@ -83,23 +83,20 @@ namespace ProductivityApiTests
         {
             EnsureDatabaseInitialized(() => new SimpleLocalDbModelContext());
 
-            using (new TransactionScope())
+            using (var context = new SimpleLocalDbModelContext())
             {
-                using (var context = new SimpleLocalDbModelContext())
-                {
-                    var product = new Product
-                                      {
-                                          Name = "Vegemite"
-                                      };
-                    context.Products.Add(product);
-                    context.SaveChanges();
+                var product = new Product
+                    {
+                        Name = "Vegemite"
+                    };
+                context.Products.Add(product);
+                context.SaveChanges();
 
-                    // Scenario ends; simple validation of final state follows
-                    Assert.NotEqual(0, product.Id);
-                    Assert.Equal(EntityState.Unchanged, GetStateEntry(context, product).State);
+                // Scenario ends; simple validation of final state follows
+                Assert.NotEqual(0, product.Id);
+                Assert.Equal(EntityState.Unchanged, GetStateEntry(context, product).State);
 
-                    Assert.Equal(@"(localdb)\v11.0", context.Database.Connection.DataSource);
-                }
+                Assert.Equal(@"(localdb)\v11.0", context.Database.Connection.DataSource);
             }
         }
 
@@ -108,20 +105,17 @@ namespace ProductivityApiTests
         {
             EnsureDatabaseInitialized(() => new SimpleLocalDbModelContext());
 
-            using (new TransactionScope())
+            using (var context = new SimpleLocalDbModelContext())
             {
-                using (var context = new SimpleLocalDbModelContext())
-                {
-                    var product = context.Products.Find(1);
-                    product.Name = "iSnack 2.0";
-                    context.SaveChanges();
+                var product = context.Products.Find(1);
+                product.Name = "iSnack 2.0";
+                context.SaveChanges();
 
-                    // Scenario ends; simple validation of final state follows
-                    Assert.Equal("iSnack 2.0", product.Name);
-                    Assert.Equal(EntityState.Unchanged, GetStateEntry(context, product).State);
+                // Scenario ends; simple validation of final state follows
+                Assert.Equal("iSnack 2.0", product.Name);
+                Assert.Equal(EntityState.Unchanged, GetStateEntry(context, product).State);
 
-                    Assert.Equal(@"(localdb)\v11.0", context.Database.Connection.DataSource);
-                }
+                Assert.Equal(@"(localdb)\v11.0", context.Database.Connection.DataSource);
             }
         }
 
@@ -145,32 +139,29 @@ namespace ProductivityApiTests
         {
             EnsureDatabaseInitialized(() => new SimpleLocalDbModelContext());
 
-            using (new TransactionScope())
+            using (var context = new SimpleLocalDbModelContext())
             {
-                using (var context = new SimpleLocalDbModelContext())
-                {
-                    var category = context.Categories.Find("Foods");
-                    var product = new Product
-                                      {
-                                          Name = "Bovril",
-                                          Category = category
-                                      };
-                    context.Products.Add(product);
-                    context.SaveChanges();
+                var category = context.Categories.Find("Foods");
+                var product = new Product
+                    {
+                        Name = "Bovril",
+                        Category = category
+                    };
+                context.Products.Add(product);
+                context.SaveChanges();
 
-                    // Scenario ends; simple validation of final state follows
-                    Assert.NotNull(product);
-                    Assert.Equal(EntityState.Unchanged, GetStateEntry(context, product).State);
+                // Scenario ends; simple validation of final state follows
+                Assert.NotNull(product);
+                Assert.Equal(EntityState.Unchanged, GetStateEntry(context, product).State);
 
-                    Assert.NotNull(category);
-                    Assert.Equal(EntityState.Unchanged, GetStateEntry(context, category).State);
+                Assert.NotNull(category);
+                Assert.Equal(EntityState.Unchanged, GetStateEntry(context, category).State);
 
-                    Assert.Equal("Foods", product.CategoryId);
-                    Assert.Same(category, product.Category);
-                    Assert.True(category.Products.Contains(product));
+                Assert.Equal("Foods", product.CategoryId);
+                Assert.Same(category, product.Category);
+                Assert.True(category.Products.Contains(product));
 
-                    Assert.Equal(@"(localdb)\v11.0", context.Database.Connection.DataSource);
-                }
+                Assert.Equal(@"(localdb)\v11.0", context.Database.Connection.DataSource);
             }
         }
 
@@ -179,25 +170,22 @@ namespace ProductivityApiTests
         {
             EnsureDatabaseInitialized(() => new SimpleLocalDbModelContext());
 
-            using (new TransactionScope())
+            using (var context = new SimpleLocalDbModelContext())
             {
-                using (var context = new SimpleLocalDbModelContext())
-                {
-                    var product = new Product
-                                      {
-                                          Name = "Bovril",
-                                          CategoryId = "Foods"
-                                      };
-                    context.Products.Add(product);
-                    context.SaveChanges();
+                var product = new Product
+                    {
+                        Name = "Bovril",
+                        CategoryId = "Foods"
+                    };
+                context.Products.Add(product);
+                context.SaveChanges();
 
-                    // Scenario ends; simple validation of final state follows
-                    Assert.NotNull(product);
-                    Assert.Equal(EntityState.Unchanged, GetStateEntry(context, product).State);
-                    Assert.Equal("Foods", product.CategoryId);
+                // Scenario ends; simple validation of final state follows
+                Assert.NotNull(product);
+                Assert.Equal(EntityState.Unchanged, GetStateEntry(context, product).State);
+                Assert.Equal("Foods", product.CategoryId);
 
-                    Assert.Equal(@"(localdb)\v11.0", context.Database.Connection.DataSource);
-                }
+                Assert.Equal(@"(localdb)\v11.0", context.Database.Connection.DataSource);
             }
         }
 
@@ -267,51 +255,45 @@ namespace ProductivityApiTests
             EnsureDatabaseInitialized(() => new LocalDbLoginsContext());
             EnsureDatabaseInitialized(() => new SimpleLocalDbModelContext());
 
-            using (new TransactionScope())
+            using (var context = new LocalDbLoginsContext())
             {
-                using (var context = new LocalDbLoginsContext())
-                {
-                    var login = new Login
-                                    {
-                                        Id = Guid.NewGuid(),
-                                        Username = "elmo"
-                                    };
-                    context.Logins.Add(login);
-                    context.SaveChanges();
+                var login = new Login
+                    {
+                        Id = Guid.NewGuid(),
+                        Username = "elmo"
+                    };
+                context.Logins.Add(login);
+                context.SaveChanges();
 
-                    // Scenario ends; simple validation of final state follows
-                    Assert.Same(login, context.Logins.Find(login.Id));
-                    Assert.Equal(EntityState.Unchanged, GetStateEntry(context, login).State);
+                // Scenario ends; simple validation of final state follows
+                Assert.Same(login, context.Logins.Find(login.Id));
+                Assert.Equal(EntityState.Unchanged, GetStateEntry(context, login).State);
 
-                    Assert.Equal(@"(localdb)\v11.0", context.Database.Connection.DataSource);
-                }
+                Assert.Equal(@"(localdb)\v11.0", context.Database.Connection.DataSource);
             }
 
-            using (new TransactionScope())
+            using (var context = new SimpleLocalDbModelContext())
             {
-                using (var context = new SimpleLocalDbModelContext())
-                {
-                    var category = new Category
-                                       {
-                                           Id = "Books"
-                                       };
-                    var product = new Product
-                                      {
-                                          Name = "The Unbearable Lightness of Being",
-                                          Category = category
-                                      };
-                    context.Products.Add(product);
-                    context.SaveChanges();
+                var category = new Category
+                    {
+                        Id = "Books"
+                    };
+                var product = new Product
+                    {
+                        Name = "The Unbearable Lightness of Being",
+                        Category = category
+                    };
+                context.Products.Add(product);
+                context.SaveChanges();
 
-                    // Scenario ends; simple validation of final state follows
-                    Assert.Equal(EntityState.Unchanged, GetStateEntry(context, product).State);
-                    Assert.Equal(EntityState.Unchanged, GetStateEntry(context, category).State);
-                    Assert.Equal("Books", product.CategoryId);
-                    Assert.Same(category, product.Category);
-                    Assert.True(category.Products.Contains(product));
+                // Scenario ends; simple validation of final state follows
+                Assert.Equal(EntityState.Unchanged, GetStateEntry(context, product).State);
+                Assert.Equal(EntityState.Unchanged, GetStateEntry(context, category).State);
+                Assert.Equal("Books", product.CategoryId);
+                Assert.Same(category, product.Category);
+                Assert.True(category.Products.Contains(product));
 
-                    Assert.Equal(@"(localdb)\v11.0", context.Database.Connection.DataSource);
-                }
+                Assert.Equal(@"(localdb)\v11.0", context.Database.Connection.DataSource);
             }
         }
 

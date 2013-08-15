@@ -8,7 +8,12 @@ namespace System.Data.Entity.Migrations
     using System.Data.Entity.Spatial;
     using System.Data.SqlServerCe;
 
-    public class MigrationsCustomer
+    public class MigrationsCustomerBase
+    {
+        public int Id { get; private set; }
+    }
+
+    public class MigrationsCustomer : MigrationsCustomerBase
     {
         public MigrationsCustomer()
         {
@@ -17,7 +22,6 @@ namespace System.Data.Entity.Migrations
             WorkAddress = new MigrationsAddress();
         }
 
-        public int Id { get; set; }
         public long CustomerNumber { get; set; }
         public string Name { get; set; }
         public string FullName { get; set; }
@@ -108,6 +112,14 @@ namespace System.Data.Entity.Migrations
         public byte[] RowVersion { get; set; }
     }
 
+    public class WithGuidKey
+    {
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+        public Guid Id { get; set; }
+
+        public string Foo { get; set; }
+    }
+
     public enum StoreKind
     {
         Mall,
@@ -134,6 +146,12 @@ namespace System.Data.Entity.Migrations
             modelBuilder.Entity<OrderLine>().Ignore(c => c.Total);
             modelBuilder.Entity<Order>().Property(o => o.Type).IsUnicode(false);
             modelBuilder.Entity<MigrationsProduct>();
+            
+            if (!(Database.Connection is SqlCeConnection))
+            {
+                // NotSupported in CE
+                modelBuilder.Entity<MigrationsCustomer>().MapToStoredProcedures();
+            }
         }
     }
 
@@ -258,8 +276,8 @@ namespace System.Data.Entity.Migrations
         protected override void OnModelCreating(DbModelBuilder modelBuilder)
         {
             modelBuilder.Entity<MigrationsEmployee>()
-                .HasOptional(e => e.Manager)
-                .WithMany(m => m.DirectReports);
+                        .HasOptional(e => e.Manager)
+                        .WithMany(m => m.DirectReports);
         }
     }
 

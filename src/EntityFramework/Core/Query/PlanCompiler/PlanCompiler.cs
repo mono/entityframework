@@ -182,25 +182,25 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
         }
 
 #if DEBUG
-        /// <summary>
-        ///     Get the current plan compiler phase
-        /// </summary>
+    /// <summary>
+    ///     Get the current plan compiler phase
+    /// </summary>
         internal PlanCompilerPhase Phase
         {
             get { return m_phase; }
         }
 
         /// <summary>
-        ///     Sets the current plan compiler trace function to <paramref name="traceCallback" />, enabling plan compiler tracing
-        /// </summary>
+///     Sets the current plan compiler trace function to <paramref name="traceCallback" />, enabling plan compiler tracing
+/// </summary>
         internal static void TraceOn(Action<string, object> traceCallback)
         {
             s_traceCallback = traceCallback;
         }
 
         /// <summary>
-        ///     Sets the current plan compiler trace function to <c>null</c>, disabling plan compiler tracing
-        /// </summary>
+///     Sets the current plan compiler trace function to <c>null</c>, disabling plan compiler tracing
+/// </summary>
         internal static void TraceOff()
         {
             s_traceCallback = null;
@@ -364,7 +364,7 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
             CodeGen.Process(this, out providerCommands, out resultColumnMap, out columnCount);
 
 #if DEBUG
-            // GC.KeepAlive makes FxCop Grumpy.
+    // GC.KeepAlive makes FxCop Grumpy.
             var size = beforePreProcessor.Length;
             size = beforeAggregatePushdown.Length;
             size = beforeNormalization.Length;

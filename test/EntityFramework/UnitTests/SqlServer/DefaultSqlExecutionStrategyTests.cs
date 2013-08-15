@@ -1,18 +1,33 @@
-﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
+// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 namespace System.Data.Entity.SqlServer
 {
     using System.Data.Entity.Core;
     using System.Data.Entity.Infrastructure;
+    using System.Threading;
     using System.Threading.Tasks;
     using Xunit;
 
     public class DefaultSqlExecutionStrategyTests
     {
         [Fact]
-        public void SupportsExistingTransactions_returns_true()
+        public void RetriesOnFailure_returns_false()
         {
-            Assert.True(new DefaultSqlExecutionStrategy().SupportsExistingTransactions);
+            Assert.False(new DefaultSqlExecutionStrategy().RetriesOnFailure);
+        }
+
+        [Fact]
+        public void Execute_throws_on_null_parameters()
+        {
+            var executionStrategy = new DefaultSqlExecutionStrategy();
+
+            Assert.Equal(
+                "action",
+                Assert.Throws<ArgumentNullException>(() => executionStrategy.Execute(null)).ParamName);
+
+            Assert.Equal(
+                "func",
+                Assert.Throws<ArgumentNullException>(() => executionStrategy.Execute((Func<object>)null)).ParamName);
         }
 
         [Fact]
@@ -80,15 +95,28 @@ namespace System.Data.Entity.SqlServer
 #if !NET40
 
         [Fact]
+        public void ExecuteAsync_throws_on_null_parameter()
+        {
+            var executionStrategy = new DefaultSqlExecutionStrategy();
+
+            Assert.Equal(
+                "func",
+                Assert.Throws<ArgumentNullException>(() => executionStrategy.ExecuteAsync((Func<Task<object>>)null, CancellationToken.None)).ParamName);
+
+            Assert.Equal(
+                "func",
+                Assert.Throws<ArgumentNullException>(() => executionStrategy.ExecuteAsync((Func<Task<object>>)null, CancellationToken.None)).ParamName);
+        }
+        [Fact]
         public void ExecuteAsync_Action_doesnt_retry_on_transient_exceptions()
         {
-            ExecuteAsync_doesnt_retry_on_transient_exceptions((e, f) => e.ExecuteAsync(() => (Task)f()));
+            ExecuteAsync_doesnt_retry_on_transient_exceptions((e, f) => e.ExecuteAsync(() => (Task)f(), CancellationToken.None));
         }
 
         [Fact]
         public void ExecuteAsync_Func_doesnt_retry_on_transient_exceptions()
         {
-            ExecuteAsync_doesnt_retry_on_transient_exceptions((e, f) => e.ExecuteAsync(f));
+            ExecuteAsync_doesnt_retry_on_transient_exceptions((e, f) => e.ExecuteAsync(f, CancellationToken.None));
         }
 
         private void ExecuteAsync_doesnt_retry_on_transient_exceptions(Func<IExecutionStrategy, Func<Task<int>>, Task> executeAsync)
@@ -118,13 +146,13 @@ namespace System.Data.Entity.SqlServer
         [Fact]
         public void ExecuteAsync_Action_doesnt_retry_on_nontransient_exceptions()
         {
-            ExecuteAsync_doesnt_retry_on_nontransient_exceptions((e, f) => e.ExecuteAsync(() => (Task)f()));
+            ExecuteAsync_doesnt_retry_on_nontransient_exceptions((e, f) => e.ExecuteAsync(() => (Task)f(), CancellationToken.None));
         }
 
         [Fact]
         public void ExecuteAsync_Func_doesnt_retry_on_nontransient_exceptions()
         {
-            ExecuteAsync_doesnt_retry_on_nontransient_exceptions((e, f) => e.ExecuteAsync(f));
+            ExecuteAsync_doesnt_retry_on_nontransient_exceptions((e, f) => e.ExecuteAsync(f, CancellationToken.None));
         }
 
         private void ExecuteAsync_doesnt_retry_on_nontransient_exceptions(Func<IExecutionStrategy, Func<Task<int>>, Task> executeAsync)

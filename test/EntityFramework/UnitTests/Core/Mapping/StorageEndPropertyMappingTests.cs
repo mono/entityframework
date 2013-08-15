@@ -11,7 +11,7 @@ namespace System.Data.Entity.Core.Mapping
         [Fact]
         public void Can_get_property_mappings()
         {
-            var endPropertyMapping = new StorageEndPropertyMapping(new EdmProperty("P"));
+            var endPropertyMapping = new StorageEndPropertyMapping();
 
             Assert.Empty(endPropertyMapping.PropertyMappings);
 
@@ -22,5 +22,34 @@ namespace System.Data.Entity.Core.Mapping
 
             Assert.Same(scalarPropertyMapping, endPropertyMapping.PropertyMappings.Single());
         }
+
+        [Fact]
+        public void Can_get_properties()
+        {
+            var endPropertyMapping = new StorageEndPropertyMapping();
+
+            Assert.Empty(endPropertyMapping.Properties);
+
+            var scalarPropertyMapping
+                = new StorageScalarPropertyMapping(new EdmProperty("P"), new EdmProperty("C"));
+
+            endPropertyMapping.AddProperty(scalarPropertyMapping);
+
+            Assert.Same(scalarPropertyMapping, endPropertyMapping.Properties.Single());            
+        }
+
+        [Fact]
+        public void Can_set_and_get_end_member()
+        {
+            var endPropertyMapping = new StorageEndPropertyMapping();
+
+            Assert.Null(endPropertyMapping.EndMember);
+
+            var endMember = new AssociationEndMember("E", new EntityType("E", "N", DataSpace.CSpace));
+            endPropertyMapping.EndMember = endMember;
+
+            Assert.Same(endMember, endPropertyMapping.EndMember);
+        }
+
     }
 }

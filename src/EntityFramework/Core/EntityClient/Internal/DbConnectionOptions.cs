@@ -57,6 +57,13 @@ namespace System.Data.Entity.Core.EntityClient.Internal
         private readonly Hashtable _parsetable;
         internal readonly NameValuePair KeyChain;
 
+        /// <summary>
+        ///     For testing.
+        /// </summary>
+        internal DbConnectionOptions()
+        {
+        }
+
         // synonyms hashtable is meant to be read-only translation of parsed string
         // keywords/synonyms to a known keyword string
         internal DbConnectionOptions(string connectionString, Hashtable synonyms)
@@ -86,7 +93,7 @@ namespace System.Data.Entity.Core.EntityClient.Internal
             get { return _parsetable; }
         }
 
-        internal string this[string keyword]
+        internal virtual string this[string keyword]
         {
             get { return (string)_parsetable[keyword]; }
         }
@@ -528,41 +535,41 @@ namespace System.Data.Entity.Core.EntityClient.Internal
             try
             {
 #endif
-                var nextStartPosition = 0;
-                var endPosition = connectionString.Length;
-                while (nextStartPosition < endPosition)
-                {
-                    var startPosition = nextStartPosition;
+            var nextStartPosition = 0;
+            var endPosition = connectionString.Length;
+            while (nextStartPosition < endPosition)
+            {
+                var startPosition = nextStartPosition;
 
-                    string keyname, keyvalue;
-                    nextStartPosition = GetKeyValuePair(connectionString, startPosition, buffer, out keyname, out keyvalue);
-                    if (string.IsNullOrEmpty(keyname))
-                    {
-                        // if (nextStartPosition != endPosition) { throw; }
-                        break;
-                    }
+                string keyname, keyvalue;
+                nextStartPosition = GetKeyValuePair(connectionString, startPosition, buffer, out keyname, out keyvalue);
+                if (string.IsNullOrEmpty(keyname))
+                {
+                    // if (nextStartPosition != endPosition) { throw; }
+                    break;
+                }
 
 #if DEBUG
                     Debug.Assert(IsKeyNameValid(keyname), "ParseFailure, invalid keyname");
                     Debug.Assert(IsValueValidInternal(keyvalue), "parse failure, invalid keyvalue");
 #endif
-                    var realkeyname = ((null != synonyms) ? (string)synonyms[keyname] : keyname);
-                    if (!IsKeyNameValid(realkeyname))
-                    {
-                        throw new ArgumentException(Strings.ADP_KeywordNotSupported(keyname));
-                    }
-                    parsetable[realkeyname] = keyvalue; // last key-value pair wins (or first)
-
-                    if (null != localKeychain)
-                    {
-                        localKeychain = localKeychain.Next = new NameValuePair();
-                    }
-                    else
-                    {
-                        // first time only - don't contain modified chain from UDL file
-                        keychain = localKeychain = new NameValuePair();
-                    }
+                var realkeyname = ((null != synonyms) ? (string)synonyms[keyname] : keyname);
+                if (!IsKeyNameValid(realkeyname))
+                {
+                    throw new ArgumentException(Strings.ADP_KeywordNotSupported(keyname));
                 }
+                parsetable[realkeyname] = keyvalue; // last key-value pair wins (or first)
+
+                if (null != localKeychain)
+                {
+                    localKeychain = localKeychain.Next = new NameValuePair();
+                }
+                else
+                {
+                    // first time only - don't contain modified chain from UDL file
+                    keychain = localKeychain = new NameValuePair();
+                }
+            }
 #if DEBUG
             }
             catch (ArgumentException e)

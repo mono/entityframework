@@ -5,7 +5,6 @@ namespace System.Data.Entity.Core.Metadata.Edm
     using System.Collections.Generic;
     using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
-    using System.Diagnostics;
     using System.Diagnostics.CodeAnalysis;
     using System.Linq;
     using System.Text;
@@ -15,12 +14,13 @@ namespace System.Data.Entity.Core.Metadata.Edm
     /// </summary>
     public class EdmFunction : EdmType
     {
-        internal EdmFunction()
-            : base("F", "N", DataSpace.SSpace)
+        internal EdmFunction(string name, string namespaceName, DataSpace dataSpace)
+            : this(name, namespaceName, dataSpace, new EdmFunctionPayload())
         {
             // testing only
         }
 
+        [SuppressMessage("Microsoft.Maintainability", "CA1502:AvoidExcessiveComplexity")]
         [SuppressMessage("Microsoft.Usage", "CA2214:DoNotCallOverridableMethodsInConstructors")]
         internal EdmFunction(string name, string namespaceName, DataSpace dataSpace, EdmFunctionPayload payload)
             : base(name, namespaceName, dataSpace)
@@ -31,10 +31,18 @@ namespace System.Data.Entity.Core.Metadata.Edm
 
             var returnParameters = payload.ReturnParameters ?? new FunctionParameter[0];
 
-            Debug.Assert(returnParameters.All((returnParameter) => returnParameter != null), "All return parameters must be non-null");
-            Debug.Assert(
-                returnParameters.All((returnParameter) => returnParameter.Mode == ParameterMode.ReturnValue),
-                "Return parameter in a function must have the ParameterMode equal to ReturnValue.");
+            foreach (var returnParameter in returnParameters)
+            {
+                if (returnParameter == null)
+                {
+                    throw new ArgumentException(Strings.ADP_CollectionParameterElementIsNull("ReturnParameters"));
+                }
+
+                if (returnParameter.Mode != ParameterMode.ReturnValue)
+                {
+                    throw new ArgumentException(Strings.NonReturnParameterInReturnParameterCollection);
+                }
+            }
 
             _returnParameters = new ReadOnlyMetadataCollection<FunctionParameter>(
                 returnParameters
@@ -85,21 +93,21 @@ namespace System.Data.Entity.Core.Metadata.Edm
 
             if (payload.EntitySets != null)
             {
-                Debug.Assert(
-                    _returnParameters.Count == payload.EntitySets.Length,
-                    "The number of entity sets should match the number of return parameters");
+                if (payload.EntitySets.Length != returnParameters.Length)
+                {
+                    throw new ArgumentException(Strings.NumberOfEntitySetsDoesNotMatchNumberOfReturnParameters);
+                }
+
                 _entitySets = new ReadOnlyMetadataCollection<EntitySet>(payload.EntitySets);
             }
             else
             {
-                var list = new List<EntitySet>();
-                if (_returnParameters.Count != 0)
+                if (_returnParameters.Count > 1)
                 {
-                    Debug.Assert(
-                        _returnParameters.Count == 1, "If there was more than one result set payload.EntitySets should not have been null");
-                    list.Add(null);
+                    throw new ArgumentException(Strings.NullEntitySetsForFunctionReturningMultipleResultSets);
                 }
-                _entitySets = new ReadOnlyMetadataCollection<EntitySet>(list);
+
+                _entitySets = new ReadOnlyMetadataCollection<EntitySet>(_returnParameters.Select(p => (EntitySet)null).ToList());
             }
 
             if (payload.CommandText != null)
@@ -116,8 +124,11 @@ namespace System.Data.Entity.Core.Metadata.Edm
                     {
                         throw new ArgumentException(Strings.ADP_CollectionParameterElementIsNull("parameters"));
                     }
-                    Debug.Assert(
-                        parameter.Mode != ParameterMode.ReturnValue, "No function parameter can have ParameterMode equal to ReturnValue.");
+
+                    if (parameter.Mode == ParameterMode.ReturnValue)
+                    {
+                        throw new ArgumentException(Strings.ReturnParameterInInputParameterCollection);
+                    }
                 }
 
                 // Populate the parameters
@@ -140,24 +151,32 @@ namespace System.Data.Entity.Core.Metadata.Edm
         private readonly ReadOnlyMetadataCollection<EntitySet> _entitySets;
 
         /// <summary>
-        ///     Returns the kind of the type
+        ///     Gets the built-in type kind for this <see cref="T:System.Data.Entity.Core.Metadata.Edm.EdmFunction" />.
         /// </summary>
+        /// <returns>
+        ///     One of the enumeration values of the <see cref="T:System.Data.Entity.Core.Metadata.Edm.BuiltInTypeKind" /> enumeration.
+        /// </returns>
         public override BuiltInTypeKind BuiltInTypeKind
         {
             get { return BuiltInTypeKind.EdmFunction; }
         }
 
-        /// <summary>
-        ///     Returns the full name of this type, which is namespace + "." + name.
-        /// </summary>
+        /// <summary>Returns the full name (namespace plus name) of this type. </summary>
+        /// <returns>The full name of the type.</returns>
         public override string FullName
         {
             get { return NamespaceName + "." + Name; }
         }
 
         /// <summary>
-        ///     Gets the collection of parameters
+        ///     Gets the parameters of this <see cref="T:System.Data.Entity.Core.Metadata.Edm.EdmFunction" />.
         /// </summary>
+        /// <returns>
+        ///     A collection of type <see cref="T:System.Data.Entity.Core.Metadata.Edm.ReadOnlyMetadataCollection`1" /> that contains the parameters of this
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Metadata.Edm.EdmFunction" />
+        ///     .
+        /// </returns>
         public ReadOnlyMetadataCollection<FunctionParameter> Parameters
         {
             get { return _parameters; }
@@ -193,8 +212,14 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     Gets the return parameter of this function
+        ///     Gets the return parameter of this <see cref="T:System.Data.Entity.Core.Metadata.Edm.EdmFunction" />.
         /// </summary>
+        /// <returns>
+        ///     A <see cref="T:System.Data.Entity.Core.Metadata.Edm.FunctionParameter" /> object that represents the return parameter of this
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Metadata.Edm.EdmFunction" />
+        ///     .
+        /// </returns>
         [MetadataProperty(BuiltInTypeKind.FunctionParameter, false)]
         public FunctionParameter ReturnParameter
         {
@@ -202,8 +227,14 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     Gets the return parameters of this function
+        ///     Gets the return parameters of this <see cref="T:System.Data.Entity.Core.Metadata.Edm.EdmFunction" />.
         /// </summary>
+        /// <returns>
+        ///     A collection of type <see cref="T:System.Data.Entity.Core.Metadata.Edm.ReadOnlyMetadataCollection`1" /> that represents the return parameters of this
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Metadata.Edm.EdmFunction" />
+        ///     .
+        /// </returns>
         [MetadataProperty(BuiltInTypeKind.FunctionParameter, true)]
         public ReadOnlyMetadataCollection<FunctionParameter> ReturnParameters
         {
@@ -247,6 +278,8 @@ namespace System.Data.Entity.Core.Metadata.Edm
             get { return GetFunctionAttribute(FunctionAttributes.NiladicFunction); }
         }
 
+        /// <summary>Gets or sets whether this instance is mapped to a function or to a stored procedure.</summary>
+        /// <returns>true if this instance is mapped to a function; false if this instance is mapped to a stored procedure.</returns>
         [SuppressMessage("Microsoft.Naming", "CA1704:IdentifiersShouldBeSpelledCorrectly", MessageId = "Composable")]
         [MetadataProperty(PrimitiveTypeKind.Boolean, false)]
         public bool IsComposableAttribute
@@ -254,6 +287,13 @@ namespace System.Data.Entity.Core.Metadata.Edm
             get { return GetFunctionAttribute(FunctionAttributes.IsComposable); }
         }
 
+        /// <summary>Gets a query in the language that is used by the database management system or storage model. </summary>
+        /// <returns>
+        ///     A string value in the syntax used by the database management system or storage model that contains the query or update statement of the
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Metadata.Edm.EdmFunction" />
+        ///     .
+        /// </returns>
         [MetadataProperty(PrimitiveTypeKind.String, false)]
         public string CommandTextAttribute
         {
@@ -415,23 +455,75 @@ namespace System.Data.Entity.Core.Metadata.Edm
             IsFunctionImport = 64,
             Default = IsComposable,
         }
+
+        /// <summary>
+        ///     The factory method for constructing the <see cref="EdmFunction" /> object.
+        /// </summary>
+        /// <param name="name">The name of the function.</param>
+        /// <param name="namespaceName">The namespace of the function.</param>
+        /// <param name="dataSpace">The namespace the function belongs to.</param>
+        /// <param name="payload">Additional function attributes and properties.</param>
+        /// <param name="metadataProperties">Metadata properties that will be added to the function. Can be null.</param>
+        /// <returns>
+        ///     A new, read-only instance of the <see cref="EdmFunction" /> type.
+        /// </returns>
+        public static EdmFunction Create(
+            string name,
+            string namespaceName,
+            DataSpace dataSpace,
+            EdmFunctionPayload payload,
+            IEnumerable<MetadataProperty> metadataProperties)
+        {
+            Check.NotNull(name, "name");
+            Check.NotNull(namespaceName, "namespaceName");
+
+            var function = new EdmFunction(name, namespaceName, dataSpace, payload);
+
+            if (metadataProperties != null)
+            {
+                function.AddMetadataProperties(metadataProperties.ToList());
+            }
+
+            function.SetReadOnly();
+
+            return function;
+        }
     }
 
-    internal struct EdmFunctionPayload
+    /// <summary>
+    ///     Contains additional attributes and properties of the <see cref="EdmFunction" />
+    /// </summary>
+    /// <remarks>
+    ///     Note that <see cref="EdmFunctionPayload" /> objects are short lived and exist only to
+    ///     make <see cref="EdmFunction" /> initialization easier. Instance of this type are not
+    ///     compared to each other and arrays returned by array properties are copied to internal
+    ///     collections in the <see cref="EdmFunction" /> ctor. Therefore it is fine to suppress the
+    ///     Code Analysis messages.
+    /// </remarks>
+    [SuppressMessage("Microsoft.Performance", "CA1815:OverrideEqualsAndOperatorEqualsOnValueTypes")]
+    public struct EdmFunctionPayload
     {
-        public string Schema;
-        public string StoreFunctionName;
-        public string CommandText;
-        public EntitySet[] EntitySets;
-        public bool? IsAggregate;
-        public bool? IsBuiltIn;
-        public bool? IsNiladic;
-        public bool? IsComposable;
-        public bool? IsFromProviderManifest;
-        public bool? IsCachedStoreFunction;
-        public bool? IsFunctionImport;
-        public FunctionParameter[] ReturnParameters;
-        public ParameterTypeSemantics? ParameterTypeSemantics;
-        public FunctionParameter[] Parameters;
+        public string Schema { get; set; }
+        public string StoreFunctionName { get; set; }
+        public string CommandText { get; set; }
+
+        [SuppressMessage("Microsoft.Performance", "CA1819:PropertiesShouldNotReturnArrays")]
+        public EntitySet[] EntitySets { get; set; }
+
+        public bool? IsAggregate { get; set; }
+        public bool? IsBuiltIn { get; set; }
+        public bool? IsNiladic { get; set; }
+        public bool? IsComposable { get; set; }
+        public bool? IsFromProviderManifest { get; set; }
+        public bool? IsCachedStoreFunction { get; set; }
+        public bool? IsFunctionImport { get; set; }
+
+        [SuppressMessage("Microsoft.Performance", "CA1819:PropertiesShouldNotReturnArrays")]
+        public FunctionParameter[] ReturnParameters { get; set; }
+
+        public ParameterTypeSemantics? ParameterTypeSemantics { get; set; }
+
+        [SuppressMessage("Microsoft.Performance", "CA1819:PropertiesShouldNotReturnArrays")]
+        public FunctionParameter[] Parameters { get; set; }
     }
 }

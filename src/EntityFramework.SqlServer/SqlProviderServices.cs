@@ -10,6 +10,7 @@ namespace System.Data.Entity.SqlServer
     using System.Data.Entity.Core.Common.CommandTrees;
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Infrastructure;
+    using System.Data.Entity.Migrations.Sql;
     using System.Data.Entity.Spatial;
     using System.Data.Entity.SqlServer.Resources;
     using System.Data.Entity.SqlServer.SqlGen;
@@ -23,15 +24,67 @@ namespace System.Data.Entity.SqlServer
     /// <summary>
     ///     The DbProviderServices implementation for the SqlClient provider for SQL Server.
     /// </summary>
+    /// <remarks>
+    ///     Note that instance of this type also resolve additional provider services for Microsoft SQL Server
+    ///     when this type is registered as an EF provider either using an entry in the application's config file
+    ///     or through code-based registration in <see cref="DbConfiguration" />.
+    ///     The services resolved are:
+    ///     Requests for <see cref="IDbConnectionFactory" /> are resolved to a Singleton instance of
+    ///     <see cref="SqlConnectionFactory" /> to create connections to SQL Express by default.
+    ///     Requests for <see cref="Func{ISqlExecutionStrategy}" /> for the invariant name "System.Data.SqlClient"
+    ///     for any server name are resolved to a delegate that returns a <see cref="DefaultSqlExecutionStrategy" />
+    ///     to provide a non-retrying policy for SQL Server.
+    ///     Requests for <see cref="MigrationSqlGenerator" /> for the invariant name "System.Data.SqlClient" are
+    ///     resolved to <see cref="SqlServerMigrationSqlGenerator" /> instances to provide default Migrations SQL
+    ///     generation for SQL Server.
+    ///     Requests for <see cref="DbSpatialServices" /> for the invariant name "System.Data.SqlClient" are
+    ///     resolved to a Singleton instance of <see cref="SqlSpatialServices" /> to provide default spatial
+    ///     services for SQL Server.
+    /// </remarks>
     [SuppressMessage("Microsoft.Maintainability", "CA1506:AvoidExcessiveClassCoupling")]
     [CLSCompliant(false)]
+    [DbProviderName(ProviderInvariantName)]
     public sealed class SqlProviderServices : DbProviderServices
     {
+        internal const string ProviderInvariantName = "System.Data.SqlClient";
+
         /// <summary>
         ///     Private constructor to ensure only Singleton instance is created.
         /// </summary>
         private SqlProviderServices()
         {
+            AddDependencyResolver(new SingletonDependencyResolver<IDbConnectionFactory>(new SqlConnectionFactory()));
+
+            AddDependencyResolver(
+                new ExecutionStrategyResolver<DefaultSqlExecutionStrategy>(
+                    ProviderInvariantName, null, () => new DefaultSqlExecutionStrategy()));
+
+            AddDependencyResolver(
+                new TransientDependencyResolver<MigrationSqlGenerator>(
+                    () => new SqlServerMigrationSqlGenerator(), ProviderInvariantName));
+
+            // Spatial provider will be returned if the key is null (meaning that a default provider was requested)
+            // or if a key was provided and the invariant name matches.
+            AddDependencyResolver(
+                new SingletonDependencyResolver<DbSpatialServices>(
+                    SqlSpatialServices.Instance,
+                    k =>
+                        {
+                            if (k == null)
+                            {
+                                return true;
+                            }
+
+                            var asSpatialKey = k as DbProviderInfo;
+                            if (asSpatialKey != null
+                                && asSpatialKey.ProviderInvariantName == ProviderInvariantName)
+                            {
+                                ValidateVersionHint(asSpatialKey.ProviderManifestToken);
+                                return true;
+                            }
+
+                            return false;
+                        }));
         }
 
         /// <summary>
@@ -39,12 +92,31 @@ namespace System.Data.Entity.SqlServer
         /// </summary>
         private static readonly SqlProviderServices _providerInstance = new SqlProviderServices();
 
+        private static bool _truncateDecimalsToScale = true;
+
         /// <summary>
         ///     The Singleton instance of the SqlProviderServices type.
         /// </summary>
         public static SqlProviderServices Instance
         {
             get { return _providerInstance; }
+        }
+
+        /// <summary>
+        ///     Set this flag to false to prevent <see cref="decimal" /> values from being truncated to
+        ///     the scale (number of decimal places) defined for the column. The default value is true,
+        ///     indicating that decimal values will be truncated, in order to prevent breaking existing
+        ///     applications that depend on this behavior.
+        /// </summary>
+        /// <remarks>
+        ///     With this flag set to true <see cref="SqlParameter" /> objects are created with their Scale
+        ///     properties set. When this flag is set to false then the Scale properties are not set, meaning
+        ///     that the truncation behavior of SqlParameter is avoided.
+        /// </remarks>
+        public static bool TruncateDecimalsToScale
+        {
+            get { return _truncateDecimalsToScale; }
+            set { _truncateDecimalsToScale = value; }
         }
 
         /// <summary>
@@ -224,9 +296,7 @@ namespace System.Data.Entity.SqlServer
         {
             Check.NotNull(connection, "connection");
 
-            var sqlConnection = SqlProviderUtilities.GetRequiredSqlConnection(connection);
-
-            if (string.IsNullOrEmpty(sqlConnection.ConnectionString))
+            if (string.IsNullOrEmpty(connection.ConnectionString))
             {
                 throw new ArgumentException(Strings.UnableToDetermineStoreVersion);
             }
@@ -236,15 +306,20 @@ namespace System.Data.Entity.SqlServer
             // That failing, try using connection to master database (in case the database doesn't exist yet)
             try
             {
-                UsingConnection(
-                    sqlConnection, conn => { providerManifestToken = SqlVersionUtils.GetVersionHint(SqlVersionUtils.GetSqlVersion(conn)); });
+                UsingConnection(connection, conn => { providerManifestToken = QueryForManifestToken(conn); });
             }
             catch
             {
-                UsingMasterConnection(
-                    sqlConnection, conn => { providerManifestToken = SqlVersionUtils.GetVersionHint(SqlVersionUtils.GetSqlVersion(conn)); });
+                UsingMasterConnection(connection, conn => { providerManifestToken = QueryForManifestToken(conn); });
             }
             return providerManifestToken;
+        }
+
+        private static string QueryForManifestToken(DbConnection conn)
+        {
+            var sqlVersion = SqlVersionUtils.GetSqlVersion(conn);
+            var serverType = sqlVersion >= SqlVersion.Sql11 ? SqlVersionUtils.GetServerType(conn) : ServerType.OnPremises;
+            return SqlVersionUtils.GetVersionHint(sqlVersion, serverType);
         }
 
         protected override DbProviderManifest GetDbProviderManifest(string versionHint)
@@ -266,9 +341,13 @@ namespace System.Data.Entity.SqlServer
             {
                 throw new ProviderIncompatibleException(Strings.SqlProvider_NeedSqlDataReader(fromReader.GetType()));
             }
-            return new SqlSpatialDataReader(GetSpatialServices(versionHint), new SqlDataReaderWrapper(underlyingReader));
+
+            return new SqlSpatialDataReader(
+                GetSpatialServices(new DbProviderInfo(ProviderInvariantName, versionHint)), new SqlDataReaderWrapper(underlyingReader));
         }
 
+        [Obsolete(
+            "Return DbSpatialServices from the GetService method. See http://go.microsoft.com/fwlink/?LinkId=260882 for more information.")]
         protected override DbSpatialServices DbGetSpatialServices(string versionHint)
         {
             ValidateVersionHint(versionHint);
@@ -366,12 +445,12 @@ namespace System.Data.Entity.SqlServer
                 }
             }
             if (precision.HasValue
-                && (isOutParam || result.Precision != precision.Value))
+                && (isOutParam || (result.Precision != precision.Value && _truncateDecimalsToScale)))
             {
                 result.Precision = precision.Value;
             }
             if (scale.HasValue
-                && (isOutParam || result.Scale != scale.Value))
+                && (isOutParam || (result.Scale != scale.Value && _truncateDecimalsToScale)))
             {
                 result.Scale = scale.Value;
             }
@@ -733,12 +812,6 @@ namespace System.Data.Entity.SqlServer
             return type.IsFixedLength() ? SqlDbType.Binary : SqlDbType.VarBinary;
         }
 
-        /// <inheritdoc/>
-        public override IExecutionStrategy GetExecutionStrategy()
-        {
-            return new DefaultSqlExecutionStrategy();
-        }
-
         protected override string DbCreateDatabaseScript(string providerManifestToken, StoreItemCollection storeItemCollection)
         {
             Check.NotNull(providerManifestToken, "providerManifestToken");
@@ -767,17 +840,8 @@ namespace System.Data.Entity.SqlServer
             string databaseName, dataFileName, logFileName;
             GetOrGenerateDatabaseNameAndGetFileNames(sqlConnection, out databaseName, out dataFileName, out logFileName);
 
-            var sqlVersion = GetSqlVersion(storeItemCollection);
             var createDatabaseScript = SqlDdlBuilder.CreateDatabaseScript(databaseName, dataFileName, logFileName);
-            UsingMasterConnection(
-                sqlConnection, conn =>
-                                   {
-                                       // create database
-                                       using (var command = CreateCommand(conn, createDatabaseScript, commandTimeout))
-                                       {
-                                           command.ExecuteNonQuery();
-                                       }
-                                   });
+            var sqlVersion = CreateDatabaseFromScript(commandTimeout, sqlConnection, createDatabaseScript);
 
             // Create database already succeeded. If there is a failure from this point on, the user should be informed.
             try
@@ -786,18 +850,20 @@ namespace System.Data.Entity.SqlServer
                 // invalid connection may now be valid.
                 SqlConnection.ClearPool(sqlConnection);
 
+                var interceptionContext = new DbInterceptionContext();
+
                 var setDatabaseOptionsScript = SqlDdlBuilder.SetDatabaseOptionsScript(sqlVersion, databaseName);
                 if (!String.IsNullOrEmpty(setDatabaseOptionsScript))
                 {
                     UsingMasterConnection(
                         sqlConnection, conn =>
-                                           {
-                                               // set database options
-                                               using (var command = CreateCommand(conn, setDatabaseOptionsScript, commandTimeout))
-                                               {
-                                                   command.ExecuteNonQuery();
-                                               }
-                                           });
+                            {
+                                // set database options
+                                using (var command = CreateCommand(conn, setDatabaseOptionsScript, commandTimeout))
+                                {
+                                    Interception.Dispatch.Command.NonQuery(command, interceptionContext);
+                                }
+                            });
                 }
 
                 var createObjectsScript = CreateObjectsScript(sqlVersion, storeItemCollection);
@@ -805,13 +871,13 @@ namespace System.Data.Entity.SqlServer
                 {
                     UsingConnection(
                         sqlConnection, conn =>
-                                           {
-                                               // create database objects
-                                               using (var command = CreateCommand(conn, createObjectsScript, commandTimeout))
-                                               {
-                                                   command.ExecuteNonQuery();
-                                               }
-                                           });
+                            {
+                                // create database objects
+                                using (var command = CreateCommand(conn, createObjectsScript, commandTimeout))
+                                {
+                                    Interception.Dispatch.Command.NonQuery(command, interceptionContext);
+                                }
+                            });
                 }
             }
             catch (Exception e)
@@ -831,17 +897,6 @@ namespace System.Data.Entity.SqlServer
                 // The creation of the database succeeded, the creation of the database objects failed, the database was dropped, no reason to wrap the exception
                 throw;
             }
-        }
-
-        private static SqlVersion GetSqlVersion(StoreItemCollection storeItemCollection)
-        {
-            var sqlManifest = (storeItemCollection.StoreProviderManifest as SqlProviderManifest);
-            if (sqlManifest == null)
-            {
-                throw new ArgumentException(Strings.Mapping_Provider_WrongManifestType(typeof(SqlProviderManifest)));
-            }
-            var sqlVersion = sqlManifest.SqlVersion;
-            return sqlVersion;
         }
 
         private static void GetOrGenerateDatabaseNameAndGetFileNames(
@@ -930,6 +985,24 @@ namespace System.Data.Entity.SqlServer
             return ExpandDataDirectory(attachDBFile);
         }
 
+        internal static SqlVersion CreateDatabaseFromScript(int? commandTimeout, DbConnection sqlConnection, string createDatabaseScript)
+        {
+            SqlVersion sqlVersion = 0;
+            UsingMasterConnection(
+                sqlConnection, conn =>
+                    {
+                        // create database
+                        using (var command = CreateCommand(conn, createDatabaseScript, commandTimeout))
+                        {
+                            Interception.Dispatch.Command.NonQuery(command, new DbInterceptionContext());
+                        }
+                        sqlVersion = SqlVersionUtils.GetSqlVersion(conn);
+                    });
+
+            Debug.Assert(sqlVersion != 0);
+            return sqlVersion;
+        }
+
         /// <summary>
         ///     Determines whether the database for the given connection exists.
         ///     There are three cases:
@@ -970,7 +1043,7 @@ namespace System.Data.Entity.SqlServer
             {
                 try
                 {
-                    UsingConnection(sqlConnection, (SqlConnection con) => { });
+                    UsingConnection(sqlConnection, con => { });
                     return true;
                 }
                 catch (SqlException e)
@@ -984,16 +1057,18 @@ namespace System.Data.Entity.SqlServer
                     var databaseDoesNotExistInSysTables = false;
                     UsingMasterConnection(
                         sqlConnection, conn =>
-                                           {
-                                               var sqlVersion = SqlVersionUtils.GetSqlVersion(conn);
-                                               var databaseExistsScript = SqlDdlBuilder.CreateCountDatabasesBasedOnFileNameScript(
-                                                   fileName, useDeprecatedSystemTable: sqlVersion == SqlVersion.Sql8);
-                                               using (var command = CreateCommand(conn, databaseExistsScript, commandTimeout))
-                                               {
-                                                   var rowsAffected = (int)command.ExecuteScalar();
-                                                   databaseDoesNotExistInSysTables = (rowsAffected == 0);
-                                               }
-                                           });
+                            {
+                                var sqlVersion = SqlVersionUtils.GetSqlVersion(conn);
+                                var databaseExistsScript = SqlDdlBuilder.CreateCountDatabasesBasedOnFileNameScript(
+                                    fileName, useDeprecatedSystemTable: sqlVersion == SqlVersion.Sql8);
+                                using (var command = CreateCommand(conn, databaseExistsScript, commandTimeout))
+                                {
+                                    var rowsAffected = (int)Interception.Dispatch.Command.Scalar(
+                                        command, new DbInterceptionContext());
+
+                                    databaseDoesNotExistInSysTables = (rowsAffected == 0);
+                                }
+                            });
                     if (databaseDoesNotExistInSysTables)
                     {
                         return false;
@@ -1011,16 +1086,18 @@ namespace System.Data.Entity.SqlServer
             var databaseExistsInSysTables = false;
             UsingMasterConnection(
                 sqlConnection, conn =>
-                                   {
-                                       var sqlVersion = SqlVersionUtils.GetSqlVersion(conn);
-                                       var databaseExistsScript = SqlDdlBuilder.CreateDatabaseExistsScript(
-                                           databaseName, useDeprecatedSystemTable: sqlVersion == SqlVersion.Sql8);
-                                       using (var command = CreateCommand(conn, databaseExistsScript, commandTimeout))
-                                       {
-                                           var rowsAffected = (int)command.ExecuteScalar();
-                                           databaseExistsInSysTables = (rowsAffected > 0);
-                                       }
-                                   });
+                    {
+                        var sqlVersion = SqlVersionUtils.GetSqlVersion(conn);
+                        var databaseExistsScript = SqlDdlBuilder.CreateDatabaseExistsScript(
+                            databaseName, useDeprecatedSystemTable: sqlVersion == SqlVersion.Sql8);
+                        using (var command = CreateCommand(conn, databaseExistsScript, commandTimeout))
+                        {
+                            var rowsAffected = (int)Interception.Dispatch.Command.Scalar(
+                                command, new DbInterceptionContext());
+                         
+                            databaseExistsInSysTables = (rowsAffected > 0);
+                        }
+                    });
             return databaseExistsInSysTables;
         }
 
@@ -1062,20 +1139,23 @@ namespace System.Data.Entity.SqlServer
                 var databaseNames = new List<string>();
                 UsingMasterConnection(
                     sqlConnection, conn =>
-                                       {
-                                           var sqlVersion = SqlVersionUtils.GetSqlVersion(conn);
-                                           var getDatabaseNamesScript =
-                                               SqlDdlBuilder.CreateGetDatabaseNamesBasedOnFileNameScript(
-                                                   fullFileName, sqlVersion == SqlVersion.Sql8);
-                                           var command = CreateCommand(conn, getDatabaseNamesScript, commandTimeout);
-                                           using (var reader = command.ExecuteReader())
-                                           {
-                                               while (reader.Read())
-                                               {
-                                                   databaseNames.Add(reader.GetString(0));
-                                               }
-                                           }
-                                       });
+                        {
+                            var sqlVersion = SqlVersionUtils.GetSqlVersion(conn);
+                            var getDatabaseNamesScript =
+                                SqlDdlBuilder.CreateGetDatabaseNamesBasedOnFileNameScript(
+                                    fullFileName, sqlVersion == SqlVersion.Sql8);
+                            var command = CreateCommand(conn, getDatabaseNamesScript, commandTimeout);
+
+                            using (
+                                var reader = Interception.Dispatch.Command.Reader(
+                                    command, CommandBehavior.Default, new DbInterceptionContext()))
+                            {
+                                while (reader.Read())
+                                {
+                                    databaseNames.Add(reader.GetString(0));
+                                }
+                            }
+                        });
                 if (databaseNames.Count > 0)
                 {
                     foreach (var databaseName in databaseNames)
@@ -1101,14 +1181,31 @@ namespace System.Data.Entity.SqlServer
             SqlConnection.ClearAllPools();
 
             var dropDatabaseScript = SqlDdlBuilder.DropDatabaseScript(databaseName);
-            UsingMasterConnection(
-                sqlConnection, conn =>
-                                   {
-                                       using (var command = CreateCommand(conn, dropDatabaseScript, commandTimeout))
-                                       {
-                                           command.ExecuteNonQuery();
-                                       }
-                                   });
+
+            try
+            {
+                UsingMasterConnection(
+                    sqlConnection, conn =>
+                    {
+                        using (var command = CreateCommand(conn, dropDatabaseScript, commandTimeout))
+                        {
+                            Interception.Dispatch.Command.NonQuery(command, new DbInterceptionContext());
+                        }
+                    });
+            }
+            catch (SqlException sqlException)
+            {
+                foreach (SqlError err in sqlException.Errors)
+                {
+                    // Unable to open the physical file %0.
+                    // Operating system error 2: "2(The system cannot find the file specified.)".
+                    if (err.Number == 5120)
+                    {
+                        return;
+                    }
+                }
+                throw;
+            }
         }
 
         private static string CreateObjectsScript(SqlVersion version, StoreItemCollection storeItemCollection)
@@ -1118,7 +1215,7 @@ namespace System.Data.Entity.SqlServer
 
         [SuppressMessage("Microsoft.Reliability", "CA2000:Dispose objects before losing scope", Justification = "Disposed by caller")]
         [SuppressMessage("Microsoft.Security", "CA2100:Review SQL queries for security vulnerabilities")]
-        private static SqlCommand CreateCommand(SqlConnection sqlConnection, string commandText, int? commandTimeout)
+        private static DbCommand CreateCommand(DbConnection sqlConnection, string commandText, int? commandTimeout)
         {
             DebugCheck.NotNull(sqlConnection);
             if (string.IsNullOrEmpty(commandText))
@@ -1126,7 +1223,8 @@ namespace System.Data.Entity.SqlServer
                 // SqlCommand will complain if the command text is empty
                 commandText = Environment.NewLine;
             }
-            var command = new SqlCommand(commandText, sqlConnection);
+            var command = sqlConnection.CreateCommand();
+            command.CommandText = commandText;
             if (commandTimeout.HasValue)
             {
                 command.CommandTimeout = commandTimeout.Value;
@@ -1134,26 +1232,27 @@ namespace System.Data.Entity.SqlServer
             return command;
         }
 
-        private static void UsingConnection(SqlConnection sqlConnection, Action<SqlConnection> act)
+        private static void UsingConnection(DbConnection sqlConnection, Action<DbConnection> act)
         {
             // remember the connection string so that we can reset if credentials are wiped
             var holdConnectionString = sqlConnection.ConnectionString;
             var openingConnection = sqlConnection.State == ConnectionState.Closed;
             if (openingConnection)
             {
-                DbConfiguration.GetService<IExecutionStrategy>(new ExecutionStrategyKey("System.Data.SqlClient", sqlConnection.DataSource))
-                               .Execute(
-                                   () =>
-                                       {
-                                           // If Open() fails the original credentials need to be restored before retrying
-                                           if (sqlConnection.State == ConnectionState.Closed
-                                               && !sqlConnection.ConnectionString.Equals(holdConnectionString, StringComparison.Ordinal))
-                                           {
-                                               sqlConnection.ConnectionString = holdConnectionString;
-                                           }
+                DbConfiguration.GetService<Func<IExecutionStrategy>>(
+                    new ExecutionStrategyKey(ProviderInvariantName, sqlConnection.DataSource))()
+                    .Execute(
+                        () =>
+                            {
+                                // If Open() fails the original credentials need to be restored before retrying
+                                if (sqlConnection.State == ConnectionState.Closed
+                                    && !sqlConnection.ConnectionString.Equals(holdConnectionString, StringComparison.Ordinal))
+                                {
+                                    sqlConnection.ConnectionString = holdConnectionString;
+                                }
 
-                                           sqlConnection.Open();
-                                       });
+                                sqlConnection.Open();
+                            });
             }
             try
             {
@@ -1176,7 +1275,7 @@ namespace System.Data.Entity.SqlServer
             }
         }
 
-        private static void UsingMasterConnection(SqlConnection sqlConnection, Action<SqlConnection> act)
+        private static void UsingMasterConnection(DbConnection sqlConnection, Action<DbConnection> act)
         {
             var connectionBuilder = new SqlConnectionStringBuilder(sqlConnection.ConnectionString)
                                         {
@@ -1186,8 +1285,9 @@ namespace System.Data.Entity.SqlServer
 
             try
             {
-                using (var masterConnection = new SqlConnection(connectionBuilder.ConnectionString))
+                using (var masterConnection = GetProviderFactory(sqlConnection).CreateConnection())
                 {
+                    masterConnection.ConnectionString = connectionBuilder.ConnectionString;
                     UsingConnection(masterConnection, act);
                 }
             }

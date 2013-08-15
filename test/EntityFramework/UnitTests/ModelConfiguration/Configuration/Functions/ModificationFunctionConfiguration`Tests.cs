@@ -2,40 +2,11 @@
 
 namespace System.Data.Entity.ModelConfiguration.Configuration.Functions
 {
+    using System.Collections.Generic;
     using System.Data.Entity.Spatial;
-    using Xunit;
 
-    public class ModificationFunctionConfigurationTTests
+    public abstract class ModificationFunctionConfigurationTTests
     {
-        [Fact]
-        public void HasName_should_set_name_on_underlying_configuration()
-        {
-            var configuration = CreateConfiguration();
-
-            configuration.HasName("Foo");
-
-            Assert.Equal("Foo", configuration.Configuration.Name);
-        }
-
-        [Fact]
-        public void Parameter_should_return_configuration_for_valid_property_expressions()
-        {
-            var configuration = new ModificationFunctionConfiguration<Entity>();
-
-            Assert.NotNull(configuration.Parameter(e => e.Int));
-            Assert.NotNull(configuration.Parameter(e => e.Nullable));
-            Assert.NotNull(configuration.Parameter(e => e.String));
-            Assert.NotNull(configuration.Parameter(e => e.Bytes));
-            Assert.NotNull(configuration.Parameter(e => e.Geography));
-            Assert.NotNull(configuration.Parameter(e => e.Geometry));
-            Assert.NotNull(configuration.Parameter(e => e.ComplexType.Int));
-        }
-
-        protected virtual ModificationFunctionConfiguration<Entity> CreateConfiguration()
-        {
-            return new ModificationFunctionConfiguration<Entity>();
-        }
-
         protected class Entity
         {
             public int Int { get; set; }
@@ -45,6 +16,8 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Functions
             public DbGeography Geography { get; set; }
             public DbGeometry Geometry { get; set; }
             public ComplexType ComplexType { get; set; }
+            public Entity Parent { get; set; }
+            public ICollection<Entity> Children { get; set; }
         }
 
         protected class ComplexType

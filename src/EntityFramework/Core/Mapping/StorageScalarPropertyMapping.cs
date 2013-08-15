@@ -3,8 +3,8 @@
 namespace System.Data.Entity.Core.Mapping
 {
     using System.Data.Entity.Core.Metadata.Edm;
+    using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
-    using System.Diagnostics;
 
     /// <summary>
     ///     Mapping metadata for scalar properties.
@@ -38,22 +38,24 @@ namespace System.Data.Entity.Core.Mapping
     ///     This class represents the metadata for all the scalar property map elements in the
     ///     above example.
     /// </example>
-    internal class StorageScalarPropertyMapping : StoragePropertyMapping
+    public class StorageScalarPropertyMapping : StoragePropertyMapping
     {
         /// <summary>
         ///     Construct a new Scalar EdmProperty mapping object
         /// </summary>
         /// <param name="member"> </param>
         /// <param name="columnMember"> </param>
-        internal StorageScalarPropertyMapping(EdmProperty member, EdmProperty columnMember)
+        public StorageScalarPropertyMapping(EdmProperty member, EdmProperty columnMember)
             : base(member)
         {
-            DebugCheck.NotNull(columnMember);
-            Debug.Assert(
-                Helper.IsScalarType(member.TypeUsage.EdmType),
-                "StorageScalarPropertyMapping must only map primitive or enum types");
-            Debug.Assert(
-                Helper.IsPrimitiveType(columnMember.TypeUsage.EdmType), "StorageScalarPropertyMapping must only map primitive types");
+            Check.NotNull(member, "member");
+            Check.NotNull(columnMember, "columnMember");
+
+            if (!Helper.IsScalarType(member.TypeUsage.EdmType)
+                || !Helper.IsPrimitiveType(columnMember.TypeUsage.EdmType))
+            {
+                throw new ArgumentException(Strings.StorageScalarPropertyMapping_OnlyScalarPropertiesAllowed);
+            }
 
             m_columnMember = columnMember;
         }
@@ -67,10 +69,10 @@ namespace System.Data.Entity.Core.Mapping
         /// <summary>
         ///     column name from which the sclar property is being mapped
         /// </summary>
-        internal EdmProperty ColumnProperty
+        public EdmProperty ColumnProperty
         {
             get { return m_columnMember; }
-            set
+            internal set
             {
                 DebugCheck.NotNull(value);
 

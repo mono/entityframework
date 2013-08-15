@@ -5,12 +5,12 @@ namespace System.Data.Entity.Config
     using System.Collections.Concurrent;
     using System.Data.Common;
     using System.Data.Entity.Core.Common;
+    using System.Data.Entity.Core.Mapping.ViewGeneration;
     using System.Data.Entity.Infrastructure;
     using System.Data.Entity.Infrastructure.Pluralization;
     using System.Data.Entity.Internal;
     using System.Data.Entity.Migrations.History;
-    using System.Data.Entity.Migrations.Sql;
-    using System.Data.Entity.SqlServer;
+    using System.Data.Entity.ModelConfiguration.Utilities;
     using System.Data.SqlClient;
     using System.Linq;
     using Moq;
@@ -38,12 +38,42 @@ namespace System.Data.Entity.Config
         }
 
         [Fact]
-        public void The_root_resolver_can_return_a_default_history_context_factory()
+        public void The_root_resolver_can_return_a_default_history_context_factory_that_creates_HistoryContext_instances()
         {
-            Assert.IsType<DefaultHistoryContextFactory>(
+            var factory =
+                new RootDependencyResolver(new DefaultProviderServicesResolver(), new DatabaseInitializerResolver())
+                    .GetService<HistoryContextFactory>();
+            
+            Assert.IsType<HistoryContextFactory>(factory);
+
+            using (var connection = new SqlConnection())
+            {
+                using (var context = factory(connection, null))
+                {
+                    Assert.IsType<HistoryContext>(context);
+                }
+            }
+        }
+
+        public delegate HistoryContext NotHistoryContextFactory(
+            DbConnection existingConnection, bool contextOwnsConnection, string defaultSchema);
+
+        [Fact]
+        public void The_root_resolver_does_not_return_a_history_context_factory_for_other_matching_delegate_types()
+        {
+            Assert.Null(
                 new RootDependencyResolver(
                     new DefaultProviderServicesResolver(),
-                    new DatabaseInitializerResolver()).GetService<IHistoryContextFactory>());
+                    new DatabaseInitializerResolver()).GetService<NotHistoryContextFactory>());
+        }
+
+        [Fact]
+        public void The_root_resolver_does_not_return_a_history_context_factory_for_matching_generic_Func()
+        {
+            Assert.Null(
+                new RootDependencyResolver(
+                    new DefaultProviderServicesResolver(),
+                    new DatabaseInitializerResolver()).GetService<Func<DbConnection, bool, string, HistoryContext>>());
         }
 
         [Fact]
@@ -100,24 +130,15 @@ namespace System.Data.Entity.Config
         }
 
         [Fact]
-        public void The_root_resolver_returns_the_default_command_interceptor_service()
-        {
-            Assert.IsType<DefaultCommandInterceptor>(new RootDependencyResolver().GetService<IDbCommandInterceptor>());
-        }
-
-        [Fact]
-        public void The_root_resolver_returns_the_default_sql_generators()
-        {
-            Assert.IsType<SqlServerMigrationSqlGenerator>(
-                new RootDependencyResolver().GetService<MigrationSqlGenerator>("System.Data.SqlClient"));
-            Assert.IsType<SqlCeMigrationSqlGenerator>(
-                new RootDependencyResolver().GetService<MigrationSqlGenerator>("System.Data.SqlServerCe.4.0"));
-        }
-
-        [Fact]
         public void The_root_resolver_returns_default_provider_factory_service()
         {
-            Assert.IsType<DefaultDbProviderFactoryService>(new RootDependencyResolver().GetService<IDbProviderFactoryService>());
+            var expectedType =
+#if NET40
+                typeof(Net40DefaultDbProviderFactoryService);
+#else
+                typeof(DefaultDbProviderFactoryService);
+#endif
+            Assert.IsType(expectedType, new RootDependencyResolver().GetService<IDbProviderFactoryService>());
         }
 
         [Fact]
@@ -136,6 +157,42 @@ namespace System.Data.Entity.Config
                 new RootDependencyResolver().GetService<DbProviderFactory>("System.Data.SqlClient"));
         }
 
+        [Fact]
+        public void The_root_resolver_returns_default_view_assembly_cache()
+        {
+            Assert.IsType<ViewAssemblyCache>(new RootDependencyResolver().GetService<IViewAssemblyCache>());
+        }
+
+        [Fact]
+        public void The_root_resolver_returns_default_attribute_provider()
+        {
+            Assert.IsType<AttributeProvider>(new RootDependencyResolver().GetService<AttributeProvider>());
+        }
+
+        [Fact]
+        public void The_root_resolver_resolves_from_secondary_resolvers_before_roots()
+        {
+            var attributeProvider1 = new Mock<AttributeProvider>().Object;
+            var attributeProvider2 = new Mock<AttributeProvider>().Object;
+
+            var mockSecondaryResolver1 = new Mock<IDbDependencyResolver>();
+            mockSecondaryResolver1.Setup(m => m.GetService(typeof(AttributeProvider), null)).Returns(attributeProvider1);
+            var mockSecondaryResolver2 = new Mock<IDbDependencyResolver>();
+            mockSecondaryResolver2.Setup(m => m.GetService(typeof(AttributeProvider), null)).Returns(attributeProvider2);
+
+            var rootResolver = new RootDependencyResolver();
+
+            Assert.IsType<AttributeProvider>(rootResolver.GetService<AttributeProvider>());
+
+            rootResolver.AddSecondaryResolver(mockSecondaryResolver1.Object);
+            Assert.Same(attributeProvider1, rootResolver.GetService<AttributeProvider>());
+
+            rootResolver.AddSecondaryResolver(mockSecondaryResolver2.Object);
+            Assert.Same(attributeProvider2, rootResolver.GetService<AttributeProvider>());
+
+            Assert.IsType<ViewAssemblyCache>(new RootDependencyResolver().GetService<IViewAssemblyCache>());
+        }
+
         /// <summary>
         ///     This test makes calls from multiple threads such that we have at least some chance of finding threading
         ///     issues. As with any test of this type just because the test passes does not mean that the code is
@@ -147,14 +204,14 @@ namespace System.Data.Entity.Config
         {
             for (var i = 0; i < 30; i++)
             {
-                var bag = new ConcurrentBag<DbProviderServices>();
+                var bag = new ConcurrentBag<AttributeProvider>();
 
                 var resolver = new RootDependencyResolver();
 
-                ExecuteInParallel(() => bag.Add(resolver.GetService<DbProviderServices>("System.Data.SqlClient")));
+                ExecuteInParallel(() => bag.Add(resolver.GetService<AttributeProvider>()));
 
                 Assert.Equal(20, bag.Count);
-                Assert.True(bag.All(c => SqlProviderServices.Instance == c));
+                Assert.True(bag.All(c => c.GetType() == typeof(AttributeProvider)));
             }
         }
 

@@ -4,7 +4,10 @@ namespace System.Data.Entity.Internal
 {
     using System.Collections.Generic;
     using System.Data.Common;
+    using System.Data.Entity.Core.Common;
     using System.Data.Entity.Core.Metadata.Edm;
+    using System.Data.Entity.Core.Objects;
+    using System.Data.Entity.Infrastructure;
     using System.Diagnostics;
     using System.Diagnostics.CodeAnalysis;
     using System.Linq;
@@ -60,7 +63,8 @@ namespace System.Data.Entity.Internal
                 {
                     using (var clonedObjectContext = internalContext.CreateObjectContextForDdlOps())
                     {
-                        databaseTables = GetDatabaseTables(clonedObjectContext.Connection, provider).ToList();
+                        databaseTables = GetDatabaseTables(
+                            clonedObjectContext.ObjectContext, clonedObjectContext.Connection, provider).ToList();
                     }
                 }
 
@@ -107,20 +111,50 @@ namespace System.Data.Entity.Internal
         }
 
         [SuppressMessage("Microsoft.Security", "CA2100:Review SQL queries for security vulnerabilities")]
-        private static IEnumerable<Tuple<string, string>> GetDatabaseTables(DbConnection connection, IPseudoProvider provider)
+        private static IEnumerable<Tuple<string, string>> GetDatabaseTables(
+            ObjectContext context, DbConnection connection, IPseudoProvider provider)
         {
-            using (var command = connection.CreateCommand())
+            using (var command = new InterceptableDbCommand(
+                connection.CreateCommand(), context.InterceptionContext))
             {
                 command.CommandText = provider.StoreSchemaTablesQuery;
-                connection.Open();
 
-                using (var reader = command.ExecuteReader())
+                var executionStrategy = DbProviderServices.GetExecutionStrategy(connection);
+                try
                 {
-                    while (reader.Read())
+                    return executionStrategy.Execute(
+                        () =>
+                            {
+                                if (connection.State == ConnectionState.Broken)
+                                {
+                                    connection.Close();
+                                }
+
+                                if (connection.State == ConnectionState.Closed)
+                                {
+                                    connection.Open();
+                                }
+
+                                using (var reader = command.ExecuteReader())
+                                {
+                                    var tables = new List<Tuple<string, string>>();
+                                    while (reader.Read())
+                                    {
+                                        tables.Add(
+                                            Tuple.Create(
+                                                reader["SchemaName"] as string,
+                                                reader["Name"] as string));
+                                    }
+
+                                    return tables;
+                                }
+                            });
+                }
+                finally
+                {
+                    if (connection.State != ConnectionState.Closed)
                     {
-                        yield return Tuple.Create(
-                            reader["SchemaName"] as string,
-                            reader["Name"] as string);
+                        connection.Close();
                     }
                 }
             }

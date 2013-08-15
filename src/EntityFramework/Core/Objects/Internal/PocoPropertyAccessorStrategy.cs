@@ -9,7 +9,6 @@ namespace System.Data.Entity.Core.Objects.Internal
     using System.Diagnostics;
     using System.Linq.Expressions;
     using System.Reflection;
-    using Util = System.Data.Entity.Core.Common.Internal.Materialization.Util;
 
     /// <summary>
     ///     Implementation of the property accessor strategy that gets and sets values on POCO entities.  That is,
@@ -17,8 +16,8 @@ namespace System.Data.Entity.Core.Objects.Internal
     /// </summary>
     internal sealed class PocoPropertyAccessorStrategy : IPropertyAccessorStrategy
     {
-        private static readonly MethodInfo _addToCollectionGeneric = typeof(PocoPropertyAccessorStrategy).GetMethod(
-            "AddToCollection", BindingFlags.NonPublic | BindingFlags.Static);
+        private static readonly MethodInfo _addToCollectionGeneric =
+            typeof(PocoPropertyAccessorStrategy).GetMethod("AddToCollection", BindingFlags.NonPublic | BindingFlags.Static);
 
         private static readonly MethodInfo _removeFromCollectionGeneric =
             typeof(PocoPropertyAccessorStrategy).GetMethod("RemoveFromCollection", BindingFlags.NonPublic | BindingFlags.Static);
@@ -164,7 +163,7 @@ namespace System.Data.Entity.Core.Objects.Internal
                 Debug.Assert(collection != null, "Collection is null");
 
                 // do not call Add if the collection is a RelatedEnd instance
-                if (collection == relatedEnd)
+                if (ReferenceEquals(collection, relatedEnd))
                 {
                     return;
                 }
@@ -180,7 +179,8 @@ namespace System.Data.Entity.Core.Objects.Internal
             catch (Exception ex)
             {
                 throw new EntityException(
-                    Strings.PocoEntityWrapper_UnableToSetFieldOrProperty(relatedEnd.TargetAccessor.PropertyName, entity.GetType().FullName),
+                    Strings.PocoEntityWrapper_UnableToSetFieldOrProperty(
+                        relatedEnd.TargetAccessor.PropertyName, entity.GetType().FullName),
                     ex);
             }
         }
@@ -190,7 +190,6 @@ namespace System.Data.Entity.Core.Objects.Internal
         {
             var navPropType = GetNavigationPropertyType(type, propertyName);
             var elementType = EntityUtil.GetCollectionElementType(navPropType);
-            var collectionType = typeof(ICollection<>).MakeGenericType(elementType);
 
             var addToCollection = _addToCollectionGeneric.MakeGenericMethod(elementType);
             return (Action<object, object>)addToCollection.Invoke(null, null);
@@ -199,16 +198,16 @@ namespace System.Data.Entity.Core.Objects.Internal
         private static Action<object, object> AddToCollection<T>()
         {
             return (collectionArg, item) =>
-                       {
-                           var collection = (ICollection<T>)collectionArg;
-                           var array = collection as Array;
-                           if (array != null
-                               && array.IsFixedSize)
-                           {
-                               throw new InvalidOperationException(Strings.RelatedEnd_CannotAddToFixedSizeArray(array.GetType()));
-                           }
-                           collection.Add((T)item);
-                       };
+                {
+                    var collection = (ICollection<T>)collectionArg;
+                    var array = collection as Array;
+                    if (array != null
+                        && array.IsFixedSize)
+                    {
+                        throw new InvalidOperationException(Strings.RelatedEnd_CannotAddToFixedSizeArray(array.GetType()));
+                    }
+                    collection.Add((T)item);
+                };
         }
 
         #endregion
@@ -225,7 +224,7 @@ namespace System.Data.Entity.Core.Objects.Internal
                 if (collection != null)
                 {
                     // do not call Add if the collection is a RelatedEnd instance
-                    if (collection == relatedEnd)
+                    if (ReferenceEquals(collection, relatedEnd))
                     {
                         return true;
                     }
@@ -253,7 +252,6 @@ namespace System.Data.Entity.Core.Objects.Internal
         {
             var navPropType = GetNavigationPropertyType(type, propertyName);
             var elementType = EntityUtil.GetCollectionElementType(navPropType);
-            var collectionType = typeof(ICollection<>).MakeGenericType(elementType);
 
             var removeFromCollection = _removeFromCollectionGeneric.MakeGenericMethod(elementType);
             return (Func<object, object, bool>)removeFromCollection.Invoke(null, null);
@@ -262,16 +260,16 @@ namespace System.Data.Entity.Core.Objects.Internal
         private static Func<object, object, bool> RemoveFromCollection<T>()
         {
             return (collectionArg, item) =>
-                       {
-                           var collection = (ICollection<T>)collectionArg;
-                           var array = collection as Array;
-                           if (array != null
-                               && array.IsFixedSize)
-                           {
-                               throw new InvalidOperationException(Strings.RelatedEnd_CannotRemoveFromFixedSizeArray(array.GetType()));
-                           }
-                           return collection.Remove((T)item);
-                       };
+                {
+                    var collection = (ICollection<T>)collectionArg;
+                    var array = collection as Array;
+                    if (array != null
+                        && array.IsFixedSize)
+                    {
+                        throw new InvalidOperationException(Strings.RelatedEnd_CannotRemoveFromFixedSizeArray(array.GetType()));
+                    }
+                    return collection.Remove((T)item);
+                };
         }
 
         #endregion
@@ -312,7 +310,8 @@ namespace System.Data.Entity.Core.Objects.Internal
                     Strings.PocoEntityWrapper_UnableToMaterializeArbitaryNavPropType(propName, navigationPropertyType));
             }
 
-            return Expression.Lambda<Func<object>>(Expression.New(typeToInstantiate)).Compile();
+            return Expression.Lambda<Func<object>>(
+                DelegateFactory.GetNewExpressionForCollectionType(typeToInstantiate)).Compile();
         }
 
         #endregion

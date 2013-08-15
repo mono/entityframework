@@ -46,7 +46,7 @@ namespace System.Data.Entity.ModelConfiguration.Edm
             var table = database.AddTable(name);
 
             // Add PK columns to the new table
-            foreach (var property in pkSource.DeclaredKeyProperties)
+            foreach (var property in pkSource.KeyProperties)
             {
                 table.AddKeyMember(property.Clone());
             }
@@ -163,8 +163,14 @@ namespace System.Data.Entity.ModelConfiguration.Edm
             return new DatabaseMappingGenerator(providerManifest).Generate(model);
         }
 
-        [SuppressMessage("Microsoft.Performance", "CA1811:AvoidUncalledPrivateCode",
-            Justification = "Used by test code.")]
+        public static EdmType GetStructuralOrEnumType(this EdmModel model, string name)
+        {
+            DebugCheck.NotNull(model);
+            DebugCheck.NotEmpty(name);
+
+            return model.GetStructuralType(name) ?? model.GetEnumType(name);
+        }
+
         public static EdmType GetStructuralType(this EdmModel model, string name)
         {
             DebugCheck.NotNull(model);
@@ -344,14 +350,14 @@ namespace System.Data.Entity.ModelConfiguration.Edm
                     modelNamespace ?? DefaultModelNamespace,
                     false,
                     DataSpace.CSpace)
-                      {
-                          SourceEnd =
-                              new AssociationEndMember(
-                              name + "_Source", sourceEntityType.GetReferenceType(), sourceAssociationEndKind),
-                          TargetEnd =
-                              new AssociationEndMember(
-                              name + "_Target", targetEntityType.GetReferenceType(), targetAssociationEndKind)
-                      };
+                    {
+                        SourceEnd =
+                            new AssociationEndMember(
+                                name + "_Source", sourceEntityType.GetReferenceType(), sourceAssociationEndKind),
+                        TargetEnd =
+                            new AssociationEndMember(
+                                name + "_Target", targetEntityType.GetReferenceType(), targetAssociationEndKind)
+                    };
 
             model.AddAssociationType(associationType);
 
@@ -455,10 +461,10 @@ namespace System.Data.Entity.ModelConfiguration.Edm
 
             var associationSet
                 = new AssociationSet(name, associationType)
-                      {
-                          SourceSet = model.GetEntitySet(associationType.SourceEnd.GetEntityType()),
-                          TargetSet = model.GetEntitySet(associationType.TargetEnd.GetEntityType())
-                      };
+                    {
+                        SourceSet = model.GetEntitySet(associationType.SourceEnd.GetEntityType()),
+                        TargetSet = model.GetEntitySet(associationType.TargetEnd.GetEntityType())
+                    };
 
             model.Containers.Single().AddEntitySetBase(associationSet);
 

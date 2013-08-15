@@ -6,6 +6,7 @@ namespace System.Data.Entity.Edm.Serialization
     using System.Data.Entity.Edm.Validation;
     using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
+    using System.Diagnostics.CodeAnalysis;
     using System.Linq;
     using System.Xml;
 
@@ -16,8 +17,6 @@ namespace System.Data.Entity.Edm.Serialization
     /// </summary>
     public class CsdlSerializer
     {
-        private bool _isModelValid = true;
-
         public event EventHandler<DataModelErrorEventArgs> OnError;
 
         /// <summary>
@@ -27,43 +26,46 @@ namespace System.Data.Entity.Edm.Serialization
         ///     The EdmModel to serialize.
         /// </param>
         /// <param name="xmlWriter"> The XmlWriter to serialize to </param>
-        public bool Serialize(EdmModel model, XmlWriter xmlWriter)
+        [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
+        public bool Serialize(EdmModel model, XmlWriter xmlWriter, string modelNamespace = null)
         {
             Check.NotNull(model, "model");
             Check.NotNull(xmlWriter, "xmlWriter");
 
+            bool modelIsValid = true;
+           
+            Action<DataModelErrorEventArgs> onErrorAction =
+                e =>
+                {
+                    modelIsValid = false;
+                    if (OnError != null)
+                    {
+                        OnError(this, e);
+                    }
+                };
+
             if (model.NamespaceNames.Count() > 1
                 || model.Containers.Count() != 1)
             {
-                Validator_OnError(
-                    this,
+                onErrorAction(
                     new DataModelErrorEventArgs
-                        {
-                            ErrorMessage = Strings.Serializer_OneNamespaceAndOneContainer,
-                        });
+                    {
+                        ErrorMessage = Strings.Serializer_OneNamespaceAndOneContainer,
+                    });
             }
 
             // validate the model first
             var validator = new DataModelValidator();
-            validator.OnError += Validator_OnError;
+            validator.OnError += (_, e) => onErrorAction(e);
             validator.Validate(model, true);
 
-            if (_isModelValid)
+            if (modelIsValid)
             {
-                new EdmSerializationVisitor(xmlWriter, model.Version).Visit(model);
+                new EdmSerializationVisitor(xmlWriter, model.SchemaVersion).Visit(model, modelNamespace);
+                return true;
             }
 
-            return _isModelValid;
-        }
-
-        private void Validator_OnError(object sender, DataModelErrorEventArgs e)
-        {
-            _isModelValid = false;
-
-            if (OnError != null)
-            {
-                OnError(sender, e);
-            }
+            return false;
         }
     }
 }

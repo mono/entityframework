@@ -1,11 +1,10 @@
 // Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
-namespace System.Data.Entity.ModelConfiguration.Conventions.UnitTests
+namespace System.Data.Entity.ModelConfiguration.Conventions
 {
     using System.ComponentModel.DataAnnotations.Schema;
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.ModelConfiguration.Edm;
-    using System.Data.Entity.ModelConfiguration.Edm.Common;
     using System.Data.Entity.Resources;
     using System.Linq;
     using Xunit;
@@ -15,9 +14,9 @@ namespace System.Data.Entity.ModelConfiguration.Conventions.UnitTests
         [Fact]
         public void Apply_is_noop_when_existing_constraint()
         {
-            var associationType = new AssociationType();
-            associationType.SourceEnd = new AssociationEndMember("S", new EntityType());
-            associationType.TargetEnd = new AssociationEndMember("T", new EntityType());
+            var associationType = new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace);
+            associationType.SourceEnd = new AssociationEndMember("S", new EntityType("E", "N", DataSpace.CSpace));
+            associationType.TargetEnd = new AssociationEndMember("T", new EntityType("E", "N", DataSpace.CSpace));
 
             var property = EdmProperty.Primitive("Fk", PrimitiveType.GetEdmPrimitiveType(PrimitiveTypeKind.String));
 
@@ -30,7 +29,7 @@ namespace System.Data.Entity.ModelConfiguration.Conventions.UnitTests
 
             associationType.Constraint = associationConstraint;
 
-            var navigationProperty = new NavigationProperty("N", TypeUsage.Create(new EntityType()))
+            var navigationProperty = new NavigationProperty("N", TypeUsage.Create(new EntityType("E", "N", DataSpace.CSpace)))
                                          {
                                              RelationshipType = associationType
                                          };
@@ -44,9 +43,9 @@ namespace System.Data.Entity.ModelConfiguration.Conventions.UnitTests
         [Fact]
         public void Apply_is_noop_when_no_fk_annotation()
         {
-            var navigationProperty = new NavigationProperty("N", TypeUsage.Create(new EntityType()))
+            var navigationProperty = new NavigationProperty("N", TypeUsage.Create(new EntityType("E", "N", DataSpace.CSpace)))
                                          {
-                                             RelationshipType = new AssociationType()
+                                             RelationshipType = new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace)
                                          };
 
             ((IEdmConvention<NavigationProperty>)new ForeignKeyNavigationPropertyAttributeConvention())
@@ -59,9 +58,9 @@ namespace System.Data.Entity.ModelConfiguration.Conventions.UnitTests
         public void Apply_is_noop_when_unknown_dependent()
         {
             var model = new EdmModel(DataSpace.CSpace);
-            var associationType = new AssociationType();
-            associationType.SourceEnd = new AssociationEndMember("S", new EntityType());
-            associationType.TargetEnd = new AssociationEndMember("T", new EntityType());
+            var associationType = new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace);
+            associationType.SourceEnd = new AssociationEndMember("S", new EntityType("E", "N", DataSpace.CSpace));
+            associationType.TargetEnd = new AssociationEndMember("T", new EntityType("E", "N", DataSpace.CSpace));
             var navigationProperty = new NavigationProperty("N", TypeUsage.Create(associationType.TargetEnd.GetEntityType()))
                                          {
                                              RelationshipType = associationType

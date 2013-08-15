@@ -10,6 +10,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types
     using System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigation;
     using System.Data.Entity.ModelConfiguration.Configuration.Properties.Primitive;
     using System.Data.Entity.ModelConfiguration.Edm;
+    using System.Data.Entity.ModelConfiguration.Edm.Services;
     using System.Data.Entity.ModelConfiguration.Utilities;
     using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
@@ -123,6 +124,11 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types
             get { return _modificationFunctionsConfiguration != null; }
         }
 
+        internal ModificationFunctionsConfiguration ModificationFunctionsConfiguration
+        {
+            get { return _modificationFunctionsConfiguration; }
+        }
+
         internal IEnumerable<PropertyInfo> KeyProperties
         {
             get { return _keyProperties; }
@@ -199,12 +205,12 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types
 
         internal bool IsExplicitEntity { get; set; }
 
-        internal virtual void MapToFunctions()
+        internal virtual void MapToStoredProcedures()
         {
             _modificationFunctionsConfiguration = new ModificationFunctionsConfiguration();
         }
 
-        internal virtual void MapToFunctions(
+        internal virtual void MapToStoredProcedures(
             ModificationFunctionsConfiguration modificationFunctionsConfiguration)
         {
             DebugCheck.NotNull(modificationFunctionsConfiguration);
@@ -566,11 +572,44 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types
             }
 
             ConfigurePropertyMappings(databaseMapping, entityType, providerManifest);
-            ConfigureAssociationMappings(databaseMapping, entityType);
+            ConfigureAssociationMappings(databaseMapping, entityType, providerManifest);
             ConfigureDependentKeys(databaseMapping, providerManifest);
+            ConfigureModificationFunctions(databaseMapping, entityType, providerManifest);
+        }
+
+        internal void ConfigureFunctionParameters(DbDatabaseMapping databaseMapping, EntityType entityType)
+        {
+            DebugCheck.NotNull(databaseMapping);
+            DebugCheck.NotNull(entityType);
+
+            var parameterBindings
+                = (from esm in databaseMapping.GetEntitySetMappings()
+                   from mfm in esm.ModificationFunctionMappings
+                   where mfm.EntityType == entityType
+                   from pb in mfm.PrimaryParameterBindings
+                   select pb)
+                    .ToList();
+
+            ConfigureFunctionParameters(parameterBindings);
+
+            foreach (var derivedEntityType in databaseMapping.Model.EntityTypes.Where(et => et.BaseType == entityType))
+            {
+                ConfigureFunctionParameters(databaseMapping, derivedEntityType);
+            }
+        }
+
+        private void ConfigureModificationFunctions(
+            DbDatabaseMapping databaseMapping, EntityType entityType, DbProviderManifest providerManifest)
+        {
+            DebugCheck.NotNull(entityType);
+            DebugCheck.NotNull(databaseMapping);
+            DebugCheck.NotNull(providerManifest);
 
             if (_modificationFunctionsConfiguration != null)
             {
+                new ModificationFunctionMappingGenerator(providerManifest)
+                    .Generate(entityType, databaseMapping);
+
                 var modificationFunctionMapping
                     = databaseMapping.GetEntitySetMappings()
                                      .SelectMany(esm => esm.ModificationFunctionMappings)
@@ -584,7 +623,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types
         }
 
         private void ConfigurePropertyMappings(
-            DbDatabaseMapping databaseMapping, EntityType entityType, DbProviderManifest providerManifest,
+            DbDatabaseMapping databaseMapping,
+            EntityType entityType,
+            DbProviderManifest providerManifest,
             bool allowOverride = false)
         {
             DebugCheck.NotNull(databaseMapping);
@@ -594,23 +635,27 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types
             var entityTypeMappings = databaseMapping.GetEntityTypeMappings(entityType);
 
             var propertyMappings
-                = from etm in entityTypeMappings
-                  from etmf in etm.MappingFragments
-                  from pm in etmf.ColumnMappings
-                  select Tuple.Create(pm, etmf.Table);
+                = (from etm in entityTypeMappings
+                   from etmf in etm.MappingFragments
+                   from pm in etmf.ColumnMappings
+                   select Tuple.Create(pm, etmf.Table))
+                    .ToList();
 
-            Configure(propertyMappings, providerManifest, allowOverride);
+            ConfigurePropertyMappings(propertyMappings, providerManifest, allowOverride);
 
-            foreach (
-                var derivedEntityType in databaseMapping.Model.EntityTypes.Where(et => et.BaseType == entityType))
+            foreach (var derivedEntityType 
+                in databaseMapping.Model.EntityTypes.Where(et => et.BaseType == entityType))
             {
                 ConfigurePropertyMappings(databaseMapping, derivedEntityType, providerManifest, true);
             }
         }
 
-        private void ConfigureAssociationMappings(DbDatabaseMapping databaseMapping, EntityType entityType)
+        private void ConfigureAssociationMappings(
+            DbDatabaseMapping databaseMapping, EntityType entityType, DbProviderManifest providerManifest)
         {
             DebugCheck.NotNull(databaseMapping);
+            DebugCheck.NotNull(entityType);
+            DebugCheck.NotNull(providerManifest);
 
             foreach (var configuration in _navigationPropertyConfigurations)
             {
@@ -629,7 +674,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types
 
                 if (associationSetMapping != null)
                 {
-                    navigationPropertyConfiguration.Configure(associationSetMapping, databaseMapping);
+                    navigationPropertyConfiguration.Configure(associationSetMapping, databaseMapping, providerManifest);
                 }
             }
         }
@@ -655,7 +700,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types
                                     return;
                                 }
 
-                                var principalColumn = foreignKeyConstraint.PrincipalTable.DeclaredKeyProperties.ElementAt(i);
+                                var principalColumn = foreignKeyConstraint.PrincipalTable.KeyProperties.ElementAt(i);
 
                                 c.PrimitiveType = providerManifest.GetStoreTypeFromName(principalColumn.TypeName);
 

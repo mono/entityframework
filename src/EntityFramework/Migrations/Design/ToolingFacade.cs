@@ -9,7 +9,6 @@ namespace System.Data.Entity.Migrations.Design
     using System.Data.Entity.Migrations.Utilities;
     using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
-    using System.Diagnostics;
     using System.Diagnostics.CodeAnalysis;
     using System.IO;
     using System.Linq;
@@ -28,7 +27,8 @@ namespace System.Data.Entity.Migrations.Design
     /// </summary>
     public class ToolingFacade : IDisposable
     {
-        private readonly string _assemblyName;
+        private readonly string _migrationsAssemblyName;
+        private readonly string _contextAssemblyName;
         private readonly string _configurationTypeName;
         private readonly string _configurationFile;
         private readonly DbConnectionInfo _connectionStringInfo;
@@ -53,7 +53,8 @@ namespace System.Data.Entity.Migrations.Design
         /// <summary>
         ///     Initializes a new instance of the ToolingFacade class.
         /// </summary>
-        /// <param name="assemblyName"> The name of the assembly that contains the migrations configuration to be used. </param>
+        /// <param name="migrationsAssemblyName"> The name of the assembly that contains the migrations configuration to be used. </param>
+        /// <param name="contextAssemblyName"> The name of the assembly that contains the DbContext to be used. </param>
         /// <param name="configurationTypeName"> The namespace qualified name of migrations configuration to be used. </param>
         /// <param name="workingDirectory"> The working directory containing the compiled assemblies. </param>
         /// <param name="configurationFilePath"> The path of the config file from the startup project. </param>
@@ -61,23 +62,25 @@ namespace System.Data.Entity.Migrations.Design
         /// <param name="connectionStringInfo"> The connection to the database to be migrated. If null is supplied, the default connection for the context will be used. </param>
         [SuppressMessage("Microsoft.Security", "CA2140:TransparentMethodsMustNotReferenceCriticalCodeFxCopRule")]
         public ToolingFacade(
-            string assemblyName,
+            string migrationsAssemblyName,
+            string contextAssemblyName,
             string configurationTypeName,
             string workingDirectory,
             string configurationFilePath,
             string dataDirectory,
             DbConnectionInfo connectionStringInfo)
         {
-            Check.NotEmpty(assemblyName, "assemblyName");
+            Check.NotEmpty(migrationsAssemblyName, "migrationsAssemblyName");
 
-            _assemblyName = assemblyName;
+            _migrationsAssemblyName = migrationsAssemblyName;
+            _contextAssemblyName = contextAssemblyName;
             _configurationTypeName = configurationTypeName;
             _connectionStringInfo = connectionStringInfo;
 
             var info = new AppDomainSetup
-                           {
-                               ShadowCopyFiles = "true"
-                           };
+                {
+                    ShadowCopyFiles = "true"
+                };
 
             if (!string.IsNullOrWhiteSpace(workingDirectory))
             {
@@ -133,9 +136,9 @@ namespace System.Data.Entity.Migrations.Design
         public string GetContextType(string contextTypeName)
         {
             var runner = new GetContextTypeRunner
-                             {
-                                 ContextTypeName = contextTypeName
-                             };
+                {
+                    ContextTypeName = contextTypeName
+                };
             ConfigureRunner(runner);
 
             Run(runner);
@@ -181,10 +184,10 @@ namespace System.Data.Entity.Migrations.Design
         public void Update(string targetMigration, bool force)
         {
             var runner = new UpdateRunner
-                             {
-                                 TargetMigration = targetMigration,
-                                 Force = force
-                             };
+                {
+                    TargetMigration = targetMigration,
+                    Force = force
+                };
             ConfigureRunner(runner);
 
             Run(runner);
@@ -201,11 +204,11 @@ namespace System.Data.Entity.Migrations.Design
         {
             var runner
                 = new ScriptUpdateRunner
-                      {
-                          SourceMigration = sourceMigration,
-                          TargetMigration = targetMigration,
-                          Force = force
-                      };
+                    {
+                        SourceMigration = sourceMigration,
+                        TargetMigration = targetMigration,
+                        Force = force
+                    };
             ConfigureRunner(runner);
 
             Run(runner);
@@ -226,12 +229,12 @@ namespace System.Data.Entity.Migrations.Design
         {
             var runner
                 = new ScaffoldRunner
-                      {
-                          MigrationName = migrationName,
-                          Language = language,
-                          RootNamespace = rootNamespace,
-                          IgnoreChanges = ignoreChanges
-                      };
+                    {
+                        MigrationName = migrationName,
+                        Language = language,
+                        RootNamespace = rootNamespace,
+                        IgnoreChanges = ignoreChanges
+                    };
             ConfigureRunner(runner);
 
             Run(runner);
@@ -249,10 +252,10 @@ namespace System.Data.Entity.Migrations.Design
         {
             var runner
                 = new InitialCreateScaffoldRunner
-                      {
-                          Language = language,
-                          RootNamespace = rootNamespace
-                      };
+                    {
+                        Language = language,
+                        RootNamespace = rootNamespace
+                    };
 
             ConfigureRunner(runner);
 
@@ -290,30 +293,16 @@ namespace System.Data.Entity.Migrations.Design
 
         private void ConfigureRunner(BaseRunner runner)
         {
-            runner.AssemblyName = _assemblyName;
+            runner.MigrationsAssemblyName = _migrationsAssemblyName;
+            runner.ContextAssemblyName = _contextAssemblyName;
             runner.ConfigurationTypeName = _configurationTypeName;
             runner.ConnectionStringInfo = _connectionStringInfo;
             runner.Log = new ToolLogger(this);
         }
 
-        [SuppressMessage("Microsoft.Security", "CA2140:TransparentMethodsMustNotReferenceCriticalCodeFxCopRule")]
         private void Run(BaseRunner runner)
         {
-            _appDomain.SetData("error", null);
-            _appDomain.SetData("typeName", null);
-            _appDomain.SetData("stackTrace", null);
-
             _appDomain.DoCallBack(runner.Run);
-
-            var error = (string)_appDomain.GetData("error");
-
-            if (error != null)
-            {
-                var typeName = (string)_appDomain.GetData("typeName");
-                var stackTrace = (string)_appDomain.GetData("stackTrace");
-
-                throw new ToolingException(error, typeName, stackTrace);
-            }
         }
 
         private class ToolLogger : MigrationsLogger
@@ -353,29 +342,13 @@ namespace System.Data.Entity.Migrations.Design
         [Serializable]
         private abstract class BaseRunner
         {
-            public string AssemblyName { get; set; }
+            public string MigrationsAssemblyName { get; set; }
+            public string ContextAssemblyName { get; set; }
             public string ConfigurationTypeName { get; set; }
             public DbConnectionInfo ConnectionStringInfo { get; set; }
             public ToolLogger Log { get; set; }
 
-            [SuppressMessage("Microsoft.Security", "CA2140:TransparentMethodsMustNotReferenceCriticalCodeFxCopRule")]
-            [SuppressMessage("Microsoft.Design", "CA1031:DoNotCatchGeneralExceptionTypes")]
-            public void Run()
-            {
-                try
-                {
-                    RunCore();
-                }
-                catch (Exception ex)
-                {
-                    // Not ideal; not sure why exceptions won't just serialize straight across
-                    AppDomain.CurrentDomain.SetData("error", ex.Message);
-                    AppDomain.CurrentDomain.SetData("typeName", ex.GetType().FullName);
-                    AppDomain.CurrentDomain.SetData("stackTrace", ex.ToString());
-                }
-            }
-
-            protected abstract void RunCore();
+            public abstract void Run();
 
             protected MigratorBase GetMigrator()
             {
@@ -405,104 +378,30 @@ namespace System.Data.Entity.Migrations.Design
 
             private DbMigrationsConfiguration FindConfiguration()
             {
-                var configurationType = FindType<DbMigrationsConfiguration>(
+                return new MigrationsConfigurationFinder(new TypeFinder(LoadMigrationsAssembly())).FindMigrationsConfiguration(
+                    null,
                     ConfigurationTypeName,
-                    types => types
-                                 .Where(
-                                     t => t.GetConstructor(Type.EmptyTypes) != null
-                                          && !t.IsAbstract
-                                          && !t.IsGenericType)
-                                 .ToList(),
                     Error.AssemblyMigrator_NoConfiguration,
                     (assembly, types) => Error.AssemblyMigrator_MultipleConfigurations(assembly),
                     Error.AssemblyMigrator_NoConfigurationWithName,
                     Error.AssemblyMigrator_MultipleConfigurationsWithName);
-
-                return configurationType.CreateInstance<DbMigrationsConfiguration>(
-                    Strings.CreateInstance_BadMigrationsConfigurationType,
-                    s => new MigrationsException(s));
             }
 
-            protected Type FindType<TBase>(
-                string typeName,
-                Func<IEnumerable<Type>, IEnumerable<Type>> filter,
-                Func<string, Exception> noType,
-                Func<string, IEnumerable<Type>, Exception> multipleTypes,
-                Func<string, string, Exception> noTypeWithName,
-                Func<string, string, Exception> multipleTypesWithName)
+            protected Assembly LoadMigrationsAssembly()
             {
-                var typeNameSpecified = !string.IsNullOrWhiteSpace(typeName);
-                var assembly = LoadAssembly();
-
-                Type type = null;
-
-                // Try for a fully-qualified match
-                if (typeNameSpecified)
-                {
-                    type = assembly.GetType(typeName);
-                }
-
-                // Otherwise, search for it
-                if (type == null)
-                {
-                    var assemblyName = assembly.GetName().Name;
-                    var types = assembly.GetAccessibleTypes()
-                                        .Where(t => typeof(TBase).IsAssignableFrom(t));
-
-                    if (typeNameSpecified)
-                    {
-                        types = types
-                            .Where(t => string.Equals(t.Name, typeName, StringComparison.OrdinalIgnoreCase))
-                            .ToList();
-
-                        // Disambiguate using case
-                        if (types.Count() > 1)
-                        {
-                            types = types
-                                .Where(t => string.Equals(t.Name, typeName, StringComparison.Ordinal))
-                                .ToList();
-                        }
-
-                        if (!types.Any())
-                        {
-                            throw noTypeWithName(typeName, assemblyName);
-                        }
-
-                        if (types.Count() > 1)
-                        {
-                            throw multipleTypesWithName(typeName, assemblyName);
-                        }
-                    }
-                    else
-                    {
-                        // Filter out unusable types
-                        types = filter(types);
-
-                        if (!types.Any())
-                        {
-                            throw noType(assemblyName);
-                        }
-
-                        if (types.Count() > 1)
-                        {
-                            throw multipleTypes(assemblyName, types);
-                        }
-                    }
-
-                    Debug.Assert(types.Count() == 1);
-                    type = types.Single();
-                }
-
-                Debug.Assert(type != null);
-
-                return type;
+                return LoadAssembly(MigrationsAssemblyName);
             }
 
-            protected Assembly LoadAssembly()
+            protected Assembly LoadContextAssembly()
+            {
+                return LoadAssembly(ContextAssemblyName);
+            }
+
+            private static Assembly LoadAssembly(string name)
             {
                 try
                 {
-                    return Assembly.Load(AssemblyName);
+                    return Assembly.Load(name);
                 }
                 catch (FileNotFoundException ex)
                 {
@@ -517,7 +416,7 @@ namespace System.Data.Entity.Migrations.Design
         private class GetDatabaseMigrationsRunner : BaseRunner
         {
             [SuppressMessage("Microsoft.Security", "CA2140:TransparentMethodsMustNotReferenceCriticalCodeFxCopRule")]
-            protected override void RunCore()
+            public override void Run()
             {
                 var databaseMigrations = GetMigrator().GetDatabaseMigrations();
 
@@ -529,7 +428,7 @@ namespace System.Data.Entity.Migrations.Design
         private class GetPendingMigrationsRunner : BaseRunner
         {
             [SuppressMessage("Microsoft.Security", "CA2140:TransparentMethodsMustNotReferenceCriticalCodeFxCopRule")]
-            protected override void RunCore()
+            public override void Run()
             {
                 var pendingMigrations = GetMigrator().GetPendingMigrations();
 
@@ -543,7 +442,7 @@ namespace System.Data.Entity.Migrations.Design
             public string TargetMigration { get; set; }
             public bool Force { get; set; }
 
-            protected override void RunCore()
+            public override void Run()
             {
                 GetMigrator().Update(TargetMigration);
             }
@@ -567,7 +466,7 @@ namespace System.Data.Entity.Migrations.Design
             public bool Force { get; set; }
 
             [SuppressMessage("Microsoft.Security", "CA2140:TransparentMethodsMustNotReferenceCriticalCodeFxCopRule")]
-            protected override void RunCore()
+            public override void Run()
             {
                 var migrator = GetMigrator();
 
@@ -598,7 +497,7 @@ namespace System.Data.Entity.Migrations.Design
             public bool IgnoreChanges { get; set; }
 
             [SuppressMessage("Microsoft.Security", "CA2140:TransparentMethodsMustNotReferenceCriticalCodeFxCopRule")]
-            protected override void RunCore()
+            public override void Run()
             {
                 var configuration = GetConfiguration();
 
@@ -664,9 +563,9 @@ namespace System.Data.Entity.Migrations.Design
         private class GetContextTypesRunner : BaseRunner
         {
             [SuppressMessage("Microsoft.Security", "CA2140:TransparentMethodsMustNotReferenceCriticalCodeFxCopRule")]
-            protected override void RunCore()
+            public override void Run()
             {
-                var assembly = LoadAssembly();
+                var assembly = LoadContextAssembly();
 
                 var contextTypes = assembly.GetAccessibleTypes()
                                            .Where(t => typeof(DbContext).IsAssignableFrom(t)).Select(t => t.FullName)
@@ -682,9 +581,10 @@ namespace System.Data.Entity.Migrations.Design
             public string ContextTypeName { get; set; }
 
             [SuppressMessage("Microsoft.Security", "CA2140:TransparentMethodsMustNotReferenceCriticalCodeFxCopRule")]
-            protected override void RunCore()
+            public override void Run()
             {
-                var contextType = FindType<DbContext>(
+                var contextType = new TypeFinder(LoadContextAssembly()).FindType(
+                    typeof(DbContext),
                     ContextTypeName,
                     types => types.Where(t => !typeof(HistoryContext).IsAssignableFrom(t)),
                     Error.EnableMigrations_NoContext,

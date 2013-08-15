@@ -4,7 +4,6 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
 {
     using System.Collections.Generic;
     using System.Data.Common;
-    using System.Data.Entity.Config;
     using System.Data.Entity.Core.Common;
     using System.Data.Entity.Core.Common.CommandTrees;
     using System.Data.Entity.Core.Common.Utils;
@@ -12,6 +11,7 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
     using System.Data.Entity.Core.EntityClient.Internal;
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Core.Objects;
+    using System.Data.Entity.Infrastructure;
     using System.Data.Entity.Internal;
     using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
@@ -36,27 +36,16 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
     [SuppressMessage("Microsoft.Maintainability", "CA1506:AvoidExcessiveClassCoupling")]
     internal class UpdateTranslator
     {
-        private readonly IDbCommandInterceptor _commandInterceptor;
-
         #region Constructors
 
-        /// <summary>
-        ///     Constructs a new instance of <see cref="UpdateTranslator" /> based on the contents of the given entity state manager.
-        /// </summary>
-        /// <param name="stateManager"> Entity state manager containing changes to be processed. </param>
-        /// <param name="adapter"> Map adapter requesting the changes. </param>
-        public UpdateTranslator(IEntityStateManager stateManager, EntityAdapter adapter, IDbCommandInterceptor commandInterceptor = null)
+        public UpdateTranslator(EntityAdapter adapter)
             : this()
         {
-            DebugCheck.NotNull(stateManager);
             DebugCheck.NotNull(adapter);
 
-            _stateManager = stateManager;
+            _stateManager = adapter.Context.ObjectStateManager;
+            _interceptionContext = adapter.Context.InterceptionContext;
             _adapter = adapter;
-
-            _commandInterceptor
-                = commandInterceptor
-                  ?? DbConfiguration.GetService<IDbCommandInterceptor>();
 
             // connection state
             _providerServices = adapter.Connection.StoreProviderFactory.GetProviderServices();
@@ -106,6 +95,7 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
 
         // workspace state
         private readonly IEntityStateManager _stateManager;
+        private readonly DbInterceptionContext _interceptionContext;
 
         // ancillary propagation services
         private readonly RecordConverter _recordConverter;
@@ -169,6 +159,11 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
         }
 
         internal readonly IEqualityComparer<CompositeKey> KeyComparer;
+
+        public virtual DbInterceptionContext InterceptionContext
+        {
+            get { return _interceptionContext; }
+        }
 
         #endregion
 
@@ -421,7 +416,7 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
                 {
                     // Remember the data sources so that we can throw meaningful exception
                     source = command;
-                    var rowsAffected = command.Execute(identifierValues, generatedValues, _commandInterceptor);
+                    var rowsAffected = command.Execute(identifierValues, generatedValues);
                     ValidateRowsAffected(rowsAffected, source);
                 }
             }
@@ -708,7 +703,7 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
                     MetadataWorkspace, DataSpace.SSpace,
                     functionMapping.Function, resultType, functionParams);
 
-                commandDefinition = _providerServices.CreateCommandDefinition(tree);
+                commandDefinition = _providerServices.CreateCommandDefinition(tree, _interceptionContext);
             }
             return commandDefinition;
         }
@@ -788,7 +783,7 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
             Debug.Assert(null != Connection.StoreConnection, "EntityAdapter.Update ensures the store connection is set");
             try
             {
-                command = _providerServices.CreateCommand(commandTree);
+                command = new InterceptableDbCommand(_providerServices.CreateCommand(commandTree, _interceptionContext), _interceptionContext);
             }
             catch (Exception e)
             {
@@ -905,8 +900,7 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
                     if (_stateManager.TryGetEntityStateEntry(key, out valueEntry))
                     {
                         // Convert state entry so that its values are known to the update pipeline.
-                        var result = _recordConverter.ConvertCurrentValuesToPropagatorResult(
-                            valueEntry, ModifiedPropertiesBehavior.NoneModified);
+                        _recordConverter.ConvertCurrentValuesToPropagatorResult(valueEntry, ModifiedPropertiesBehavior.NoneModified);
                     }
                 }
             }

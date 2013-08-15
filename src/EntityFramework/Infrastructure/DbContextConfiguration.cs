@@ -91,15 +91,35 @@ namespace System.Data.Entity.Infrastructure
         }
 
         /// <summary>
-        ///     Gets or sets a value indicating whether the <see cref="DbContext.ChangeTracker.DetectChanges()" />
+        ///     Gets or sets a value indicating whether database null semantics are exhibited when comparing
+        ///     two operands, both of which are potentially nullable. The default value is false.
+        ///     
+        ///     For example (operand1 == operand2) will be translated as:
+        ///     
+        ///     (operand1 = operand2)
+        ///     
+        ///     if UseDatabaseNullSemantics is true, respectively
+        ///     
+        ///     (((operand1 = operand2) AND (NOT (operand1 IS NULL OR operand2 IS NULL))) OR ((operand1 IS NULL) AND (operand2 IS NULL)))
+        ///     
+        ///     if UseDatabaseNullSemantics is false.
+        /// </summary>
+        /// <value>
+        ///     <c>true</c> if database null comparison behavior is enabled, otherwise <c>false</c> .
+        /// </value>
+        public bool UseDatabaseNullSemantics
+        {
+            get { return _internalContext.UseDatabaseNullSemantics; }
+            set { _internalContext.UseDatabaseNullSemantics = value; }
+        }
+
+        /// <summary>
+        ///     Gets or sets a value indicating whether the <see cref="DbChangeTracker.DetectChanges()" />
         ///     method is called automatically by methods of <see cref="DbContext" /> and related classes.
         ///     The default value is true.
         /// </summary>
-        /// <value
-        /// <c>true</c>
-        /// if should be called automatically; otherwise,
-        /// <c>false</c>
-        /// .
+        /// <value>
+        ///     <c>true</c> if should be called automatically; otherwise, <c>false</c>.
         /// </value>
         public bool AutoDetectChangesEnabled
         {
@@ -115,7 +135,6 @@ namespace System.Data.Entity.Infrastructure
         public bool ValidateOnSaveEnabled
         {
             get { return _internalContext.ValidateOnSaveEnabled; }
-
             set { _internalContext.ValidateOnSaveEnabled = value; }
         }
 

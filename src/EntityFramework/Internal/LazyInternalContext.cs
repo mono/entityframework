@@ -6,7 +6,6 @@ namespace System.Data.Entity.Internal
     using System.Data.Common;
     using System.Data.Entity.Core.EntityClient;
     using System.Data.Entity.Core.Objects;
-    
     using System.Data.Entity.Infrastructure;
     using System.Data.Entity.ModelConfiguration.Utilities;
     using System.Data.Entity.Resources;
@@ -62,11 +61,17 @@ namespace System.Data.Entity.Internal
         // Set to true if the context was created with an existing DbCompiledModel instance.
         private readonly bool _createdWithExistingModel;
 
-        // This flag is used to keep the users selected lazy loading option before the object context is initialized.  
+        // This flag is used to keep the user's selected lazy loading option before the ObjectContext is initialized.  
         private bool _initialLazyLoadingFlag = true;
 
-        // This flag is used to keep the users selected proxy creation option before the object context is initialized.  
+        // This flag is used to keep the user's selected proxy creation option before the ObjectContext is initialized.  
         private bool _initialProxyCreationFlag = true;
+
+        // This flag is used to keep the user's database null comparison behavior option before the ObjectContext is initialized.  
+        private bool _useDatabaseNullSemanticsFlag;
+
+        // This flag is used to keep the user's command timeout before the ObjectContext is initialized.  
+        private int? _commandTimeout;
 
         // Set when database initialization is in-progress to prevent attempts to recursively initialize from
         // the initalizer.
@@ -75,6 +80,8 @@ namespace System.Data.Entity.Internal
         private Action<DbModelBuilder> _onModelCreating;
 
         private readonly IDbModelCacheKeyFactory _cacheKeyFactory;
+
+        private readonly AttributeProvider _attributeProvider;
 
         /// <summary>
         ///     Constructs a <see cref="LazyInternalContext" /> for the given <see cref="DbContext" /> owner that will be initialized
@@ -89,7 +96,8 @@ namespace System.Data.Entity.Internal
             DbContext owner,
             IInternalConnection internalConnection,
             DbCompiledModel model,
-            IDbModelCacheKeyFactory cacheKeyFactory = null)
+            IDbModelCacheKeyFactory cacheKeyFactory = null,
+            AttributeProvider attributeProvider = null)
             : base(owner)
         {
             DebugCheck.NotNull(internalConnection);
@@ -97,6 +105,7 @@ namespace System.Data.Entity.Internal
             _internalConnection = internalConnection;
             _model = model;
             _cacheKeyFactory = cacheKeyFactory ?? new DefaultModelCacheKeyFactory();
+            _attributeProvider = attributeProvider ?? new AttributeProvider();
 
             _createdWithExistingModel = model != null;
         }
@@ -147,7 +156,7 @@ namespace System.Data.Entity.Internal
         ///     The <see cref="ObjectContext" /> actually being used, which may be the
         ///     temp context for initialization or the real context.
         /// </summary>
-        private ObjectContext ObjectContextInUse
+        public virtual ObjectContext ObjectContextInUse
         {
             get { return TempObjectContext ?? _objectContext; }
         }
@@ -412,8 +421,12 @@ namespace System.Data.Entity.Internal
 
                     _objectContext.ContextOptions.LazyLoadingEnabled = _initialLazyLoadingFlag;
                     _objectContext.ContextOptions.ProxyCreationEnabled = _initialProxyCreationFlag;
+                    _objectContext.ContextOptions.UseCSharpNullComparisonBehavior = !_useDatabaseNullSemanticsFlag;
+                    _objectContext.CommandTimeout = _commandTimeout;
 
                     _objectContext.ContextOptions.UseConsistentNullReferenceBehavior = true;
+
+                    _objectContext.InterceptionContext = _objectContext.InterceptionContext.WithDbContext(Owner);
 
                     InitializeEntitySetMappings();
                 }
@@ -449,9 +462,9 @@ namespace System.Data.Entity.Internal
         /// <returns> The builder. </returns>
         public DbModelBuilder CreateModelBuilder()
         {
-            var versionAttribute = new AttributeProvider().GetAttributes(Owner.GetType())
-                                                          .OfType<DbModelBuilderVersionAttribute>()
-                                                          .FirstOrDefault();
+            var versionAttribute = _attributeProvider.GetAttributes(Owner.GetType())
+                                                     .OfType<DbModelBuilderVersionAttribute>()
+                                                     .FirstOrDefault();
             var version = versionAttribute != null ? versionAttribute.Version : DbModelBuilderVersion.Latest;
 
             var modelBuilder = new DbModelBuilder(version);
@@ -670,6 +683,57 @@ namespace System.Data.Entity.Internal
                 else
                 {
                     _initialProxyCreationFlag = value;
+                }
+            }
+        }
+
+        /// <summary>
+        ///     Gets or sets a value indicating whether database null comparison behavior is enabled.
+        ///     If the underlying ObjectContext exists, then this property acts as a wrapper over the flag stored there.
+        ///     If the underlying ObjectContext has not been created yet, then we store the value given so we can later
+        ///     use it when we create the ObjectContext.  This allows the flag to be changed, for example in
+        ///     a DbContext constructor, without it causing the ObjectContext to be created.
+        /// </summary>
+        public override bool UseDatabaseNullSemantics
+        {
+            get
+            {
+                var objectContext = ObjectContextInUse;
+                return objectContext != null
+                           ? !objectContext.ContextOptions.UseCSharpNullComparisonBehavior
+                           : _useDatabaseNullSemanticsFlag;
+            }
+            set
+            {
+                var objectContext = ObjectContextInUse;
+                if (objectContext != null)
+                {
+                    objectContext.ContextOptions.UseCSharpNullComparisonBehavior = !value;
+                }
+                else
+                {
+                    _useDatabaseNullSemanticsFlag = value;
+                }
+            }
+        }
+
+        public override int? CommandTimeout
+        {
+            get
+            {
+                var objectContext = ObjectContextInUse;
+                return objectContext != null ? objectContext.CommandTimeout : _commandTimeout;
+            }
+            set
+            {
+                var objectContext = ObjectContextInUse;
+                if (objectContext != null)
+                {
+                    objectContext.CommandTimeout = value;
+                }
+                else
+                {
+                    _commandTimeout = value;
                 }
             }
         }

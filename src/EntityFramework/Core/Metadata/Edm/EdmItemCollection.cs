@@ -24,7 +24,6 @@ namespace System.Data.Entity.Core.Metadata.Edm
     /// <summary>
     ///     Class for representing a collection of items in Edm space.
     /// </summary>
-    [CLSCompliant(false)]
     public sealed class EdmItemCollection : ItemCollection
     {
         /// <summary>
@@ -45,9 +44,9 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     Public constructor that loads the metadata files from the specified XmlReaders
+        ///     Initializes a new instance of the <see cref="T:System.Data.Entity.Core.Metadata.Edm.EdmItemCollection" /> class by using the collection of the XMLReader objects where the conceptual schema definition language (CSDL) files exist.
         /// </summary>
-        /// <param name="xmlReaders"> XmlReader objects where the EDM schemas are loaded </param>
+        /// <param name="xmlReaders">The collection of the XMLReader objects where the conceptual schema definition language (CSDL) files exist.</param>
         public EdmItemCollection(IEnumerable<XmlReader> xmlReaders)
             : base(DataSpace.CSpace)
         {
@@ -69,7 +68,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
 
             Init();
 
-            _edmVersion = model.Version;
+            _edmVersion = model.SchemaVersion;
 
             model.Validate();
 
@@ -82,13 +81,9 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     Constructs the new instance of EdmItemCollection
-        ///     with the list of CDM files provided.
+        ///     Initializes a new instance of the <see cref="T:System.Data.Entity.Core.Metadata.Edm.EdmItemCollection" /> class by using the paths where the conceptual schema definition language (CSDL) files exist.
         /// </summary>
-        /// <param name="paths"> paths where the CDM schemas are loaded </param>
-        /// <exception cref="ArgumentException">Thrown if path name is not valid</exception>
-        /// <exception cref="System.ArgumentNullException">thrown if paths argument is null</exception>
-        /// <exception cref="System.Data.Entity.Core.MetadataException">For errors related to invalid schemas.</exception>
+        /// <param name="filePaths">The paths where the conceptual schema definition language (CSDL) files exist.</param>
         [ResourceExposure(ResourceScope.Machine)] //Exposes the file path names which are a Machine resource
         [ResourceConsumption(ResourceScope.Machine)]
         //For MetadataArtifactLoader.CreateCompositeFromFilePaths method call but we do not create the file paths in this method 
@@ -120,22 +115,23 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
         }
 
-        /// <summary> 
-        /// constructor that loads the metadata files from the specified xmlReaders, and returns the list of errors 
-        /// encountered during load as the out parameter errors.
-        /// </summary> 
+        /// <summary>
+        ///     constructor that loads the metadata files from the specified xmlReaders, and returns the list of errors
+        ///     encountered during load as the out parameter errors.
+        /// </summary>
         /// <param name="xmlReaders">xmlReaders where the CDM schemas are loaded</param>
         /// <param name="filePaths">Paths (URIs)to the CSDL files or resources</param>
         /// <param name="errors">An out parameter to return the collection of errors encountered while loading</param>
-        private EdmItemCollection(IEnumerable<XmlReader> xmlReaders,
-                                   ReadOnlyCollection<string> filePaths,
-                                   out IList<EdmSchemaError> errors)
+        private EdmItemCollection(
+            IEnumerable<XmlReader> xmlReaders,
+            ReadOnlyCollection<string> filePaths,
+            out IList<EdmSchemaError> errors)
             : base(DataSpace.CSpace)
         {
             DebugCheck.NotNull(xmlReaders);
             // filePaths is allowed to be null 
 
-            errors = this.Init(xmlReaders, filePaths, false /*throwOnErrors*/);
+            errors = Init(xmlReaders, filePaths, false /*throwOnErrors*/);
         }
 
         // the most basic initialization
@@ -187,9 +183,8 @@ namespace System.Data.Entity.Core.Metadata.Edm
 
         private readonly OcAssemblyCache _conventionalOcCache = new OcAssemblyCache();
 
-        /// <summary>
-        ///     Version of the EDM that this ItemCollection represents.
-        /// </summary>
+        /// <summary>Gets the conceptual model version for this collection.</summary>
+        /// <returns>The conceptual model version for this collection.</returns>
         public Double EdmVersion
         {
             get { return _edmVersion; }
@@ -364,19 +359,29 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     Get the list of primitive types for the given space
+        ///     Returns a collection of the <see cref="T:System.Data.Entity.Core.Metadata.Edm.PrimitiveType" /> objects.
         /// </summary>
-        /// <returns> </returns>
+        /// <returns>
+        ///     A ReadOnlyCollection object that represents a collection of the
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Metadata.Edm.PrimitiveType" />
+        ///     objects.
+        /// </returns>
         public ReadOnlyCollection<PrimitiveType> GetPrimitiveTypes()
         {
             return _primitiveTypeMaps.GetTypes();
         }
 
         /// <summary>
-        ///     Get the list of primitive types for the given version of Edm
+        ///     Returns a collection of the <see cref="T:System.Data.Entity.Core.Metadata.Edm.PrimitiveType" /> objects with the specified conceptual model version.
         /// </summary>
-        /// <param name="edmVersion"> The version of edm to use </param>
-        /// <returns> </returns>
+        /// <returns>
+        ///     A ReadOnlyCollection object that represents a collection of the
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Metadata.Edm.PrimitiveType" />
+        ///     objects.
+        /// </returns>
+        /// <param name="edmVersion">The conceptual model version.</param>
         public ReadOnlyCollection<PrimitiveType> GetPrimitiveTypes(double edmVersion)
         {
             if (edmVersion == XmlConstants.EdmVersionForV1
@@ -481,18 +486,20 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        /// Factory method that creates an <see cref="EdmItemCollection"/>. 
+        ///     Factory method that creates an <see cref="EdmItemCollection" />.
         /// </summary>
-        /// <param name="xmlReaders">CSDL artifacts to load. Must not be <c>null</c>.</param>
+        /// <param name="xmlReaders">
+        ///     CSDL artifacts to load. Must not be <c>null</c>.
+        /// </param>
         /// <param name="filePaths">
-        /// Paths to CSDL artifacts. Used in error messages. Can be <c>null</c> in which case 
-        /// the base Uri of the XmlReader will be used as a path.
+        ///     Paths to CSDL artifacts. Used in error messages. Can be <c>null</c> in which case
+        ///     the base Uri of the XmlReader will be used as a path.
         /// </param>
         /// <param name="errors">
-        /// The collection of errors encountered while loading.
+        ///     The collection of errors encountered while loading.
         /// </param>
         /// <returns>
-        /// <see cref="EdmItemCollection"/> instance if no errors encountered. Otherwise <c>null</c>.
+        ///     <see cref="EdmItemCollection" /> instance if no errors encountered. Otherwise <c>null</c>.
         /// </returns>
         public static EdmItemCollection Create(
             IEnumerable<XmlReader> xmlReaders,

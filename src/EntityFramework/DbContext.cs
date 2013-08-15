@@ -9,6 +9,7 @@ namespace System.Data.Entity
     using System.Data.Entity.Core.Objects;
     using System.Data.Entity.Infrastructure;
     using System.Data.Entity.Internal;
+    using System.Data.Entity.ModelConfiguration.Utilities;
     using System.Data.Entity.Utilities;
     using System.Data.Entity.Validation;
     using System.Diagnostics.CodeAnalysis;
@@ -179,7 +180,9 @@ namespace System.Data.Entity
             DbConfigurationManager.Instance.EnsureLoadedForContext(GetType());
 
             _internalContext = new LazyInternalContext(
-                this, internalConnection, model, DbConfiguration.GetService<IDbModelCacheKeyFactory>());
+                    this, internalConnection, model
+                    , DbConfiguration.GetService<IDbModelCacheKeyFactory>()
+                    , DbConfiguration.GetService<AttributeProvider>());
             DiscoverAndInitializeSets();
         }
 
@@ -283,9 +286,16 @@ namespace System.Data.Entity
 #if !NET40
 
         /// <summary>
-        ///     Saves all changes made in this context to the underlying database asynchronously.
+        ///     Asynchronously saves all changes made in this context to the underlying database.
         /// </summary>
-        /// <returns> The number of objects written to the underlying database. </returns>
+        /// <remarks>
+        ///     Multiple active operations on the same context instance are not supported.  Use 'await' to ensure
+        ///     that any asynchronous operations have completed before calling another method on this context.
+        /// </remarks>
+        /// <returns>
+        ///     A task that represents the asynchronous save operation.
+        ///     The task result contains the number of objects written to the underlying database.
+        /// </returns>
         /// <exception cref="InvalidOperationException">Thrown if the context has been disposed.</exception>
         public Task<int> SaveChangesAsync()
         {
@@ -293,11 +303,19 @@ namespace System.Data.Entity
         }
 
         /// <summary>
-        ///     An asynchronous version of SaveChanges, which
-        ///     saves all changes made in this context to the underlying database.
+        ///     Asynchronously saves all changes made in this context to the underlying database.
         /// </summary>
-        /// <param name="cancellationToken"> The token to monitor for cancellation requests. </param>
-        /// <returns> A Task that contains the number of objects written to the underlying database. </returns>
+        /// <remarks>
+        ///     Multiple active operations on the same context instance are not supported.  Use 'await' to ensure
+        ///     that any asynchronous operations have completed before calling another method on this context.
+        /// </remarks>
+        /// <param name="cancellationToken">
+        ///     A <see cref="CancellationToken" /> to observe while waiting for the task to complete.
+        /// </param>
+        /// <returns>
+        ///     A task that represents the asynchronous save operation.
+        ///     The task result contains the number of objects written to the underlying database.
+        /// </returns>
         /// <exception cref="InvalidOperationException">Thrown if the context has been disposed.</exception>
         [SuppressMessage("Microsoft.Usage", "CA1801:ReviewUnusedParameters", MessageId = "cancellationToken")]
         public virtual Task<int> SaveChangesAsync(CancellationToken cancellationToken)

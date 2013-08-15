@@ -17,7 +17,7 @@ namespace System.Data.Entity.Edm.Validation
             var modelVisitor
                 = new EdmModelValidationVisitor(
                     context,
-                    EdmModelRuleSet.CreateEdmModelRuleSet(model.Version, validateSyntax));
+                    EdmModelRuleSet.CreateEdmModelRuleSet(model.SchemaVersion, validateSyntax));
 
             modelVisitor.Visit(model);
         }

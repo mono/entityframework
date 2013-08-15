@@ -26,6 +26,7 @@
     <WarningLevel>4</WarningLevel>
     <NoWarn>0169</NoWarn>
     <Prefer32Bit>false</Prefer32Bit>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
@@ -37,6 +38,7 @@
     <WarningLevel>4</WarningLevel>
     <NoWarn>0169</NoWarn>
     <Prefer32Bit>false</Prefer32Bit>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'DebugNet40|AnyCPU' ">
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
@@ -49,6 +51,7 @@
     <WarningLevel>4</WarningLevel>
     <NoWarn>0169</NoWarn>
     <Prefer32Bit>false</Prefer32Bit>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'ReleaseNet40|AnyCPU' ">
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
@@ -60,6 +63,7 @@
     <WarningLevel>4</WarningLevel>
     <NoWarn>0169</NoWarn>
     <Prefer32Bit>false</Prefer32Bit>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <PropertyGroup>
     <SignAssembly>true</SignAssembly>
@@ -106,6 +110,9 @@
     <None Include="..\FinalPublicKey.snk">
       <Link>Properties\FinalPublicKey.snk</Link>
     </None>
+    <EmbeddedResource Include="Objects\TransactionsModel.csdl" />
+    <EmbeddedResource Include="Objects\TransactionsModel.msl" />
+    <EmbeddedResource Include="Objects\TransactionsModel.ssdl" />
     <None Include="packages.config" />
     <None Include="App.config">
       <SubType>Designer</SubType>
@@ -119,6 +126,9 @@
     <EmbeddedResource Include="TestModels\SpatialTvfsModel\226644SpatialModel.ssdl">
       <LogicalName>FunctionalTests.ProductivityApi.SpatialTvfsModel.226644SpatialModel.ssdl</LogicalName>
     </EmbeddedResource>
+    <EmbeddedResource Include="Query\StoredProcedures\IceAndFireModel.csdl" />
+    <EmbeddedResource Include="Query\StoredProcedures\IceAndFireModel.msl" />
+    <EmbeddedResource Include="Query\StoredProcedures\IceAndFireModel.ssdl" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\EntityFramework.SqlServerCompact\EntityFramework.SqlServerCompact.csproj">
@@ -139,6 +149,78 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="CodeFirst\NonPublicPropertyTests.cs" />
+    <Compile Include="Migrations\CreateStoredProcedureScenarios.cs" />
+    <Compile Include="Migrations\ModificationFunctionsScenarios.cs" />
+    <Compile Include="Interception\BlogContext.cs" />
+    <Compile Include="Interception\CommandInterceptionTests.cs" />
+    <Compile Include="Interception\CommandTreeInterceptionTests.cs" />
+    <Compile Include="Migrations\InitializerScenarios.cs" />
+    <Compile Include="Objects\TransactionsTests.cs" />
+    <Compile Include="Migrations\SpatialScenarios.cs" />
+    <Compile Include="PlanCompiler\AnonymousTypeTests.cs" />
+    <Compile Include="PlanCompiler\LinqGroupByTests.cs" />
+    <Compile Include="ProductivityApi\DbFunctionScenarios.cs" />
+    <Compile Include="ProductivityApi\GetHashCodeTests.cs" />
+    <Compile Include="ProductivityApi\HasChangesTests.cs" />
+    <Compile Include="ProductivityApi\StreamingTests.cs" />
+    <Compile Include="ProductivityApi\NamespaceAndNestingTests.cs" />
+    <Compile Include="ProductivityApi\TimeoutTests.cs" />
+    <Compile Include="Query\ApplyOpRulesTests.cs" />
+    <Compile Include="Query\LinqToEntities\EnumTests.cs" />
+    <Compile Include="Query\LinqToEntities\SqlCeFunctionsTests.cs" />
+    <Compile Include="Query\ModelDefinedFunctionTests.cs" />
+    <Compile Include="Query\ProductModel.cs" />
+    <Compile Include="Query\StoredProcedures\IceAndFireModel.cs" />
+    <Compile Include="Query\StoredProcedures\StoredProceduresTests.cs" />
+    <Compile Include="TestHelpers\StringExtensions.cs" />
+    <Compile Include="TestModels\ArubaModel\ArubaAllTypes.cs" />
+    <Compile Include="TestModels\ArubaModel\ArubaBaseline.cs" />
+    <Compile Include="TestModels\ArubaModel\ArubaBug.cs" />
+    <Compile Include="TestModels\ArubaModel\ArubaConfig.cs" />
+    <Compile Include="TestModels\ArubaModel\ArubaContext.cs" />
+    <Compile Include="TestModels\ArubaModel\ArubaFailure.cs" />
+    <Compile Include="TestModels\ArubaModel\ArubaInitializer.cs" />
+    <Compile Include="TestModels\ArubaModel\ArubaMachineConfig.cs" />
+    <Compile Include="TestModels\ArubaModel\ArubaOwner.cs" />
+    <Compile Include="TestModels\ArubaModel\ArubaPerson.cs" />
+    <Compile Include="TestModels\ArubaModel\ArubaRun.cs" />
+    <Compile Include="TestModels\ArubaModel\ArubaTask.cs" />
+    <Compile Include="TestModels\ArubaModel\ArubaTaskInfo.cs" />
+    <Compile Include="TestModels\ArubaModel\ArubaTestFailure.cs" />
+    <Compile Include="TestModels\ArubaCeModel\ArubaCeContext.cs" />
+    <Compile Include="TestModels\ArubaCeModel\ArubaCeInitializer.cs" />
+    <Compile Include="TestModels\ArubaCeModel\ArubaAllCeTypes.cs" />
+    <Compile Include="TestModels\GearsOfWarModel\City.cs" />
+    <Compile Include="TestModels\GearsOfWarModel\CogTag.cs" />
+    <Compile Include="TestModels\GearsOfWarModel\Gear.cs" />
+    <Compile Include="TestModels\GearsOfWarModel\GearsOfWarContext.cs" />
+    <Compile Include="TestModels\GearsOfWarModel\GearsOfWarInitializer.cs" />
+    <Compile Include="TestModels\GearsOfWarModel\HeavyWeapon.cs" />
+    <Compile Include="TestModels\GearsOfWarModel\MilitaryRank.cs" />
+    <Compile Include="TestModels\GearsOfWarModel\Squad.cs" />
+    <Compile Include="TestModels\GearsOfWarModel\StandardWeapon.cs" />
+    <Compile Include="TestModels\GearsOfWarModel\Weapon.cs" />
+    <Compile Include="Update\TruncationTests.cs" />
+    <Compile Include="Update\UpdateTests.cs" />
+    <Compile Include="ViewGeneration\PregenContextEdmxViews.cs" />
+    <Compile Include="ViewGeneration\PregenContextViews.cs" />
+    <Compile Include="ViewGeneration\PregeneratedViewsTests.cs" />
+    <Compile Include="WrappingProvider\LogItem.cs" />
+    <Compile Include="WrappingProvider\WrappingAdoNetProvider.cs" />
+    <Compile Include="WrappingProvider\WrappingCommand.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="WrappingProvider\WrappingCommandDefinition.cs" />
+    <Compile Include="WrappingProvider\WrappingConnection.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="WrappingProvider\WrappingEfProvider.cs" />
+    <Compile Include="WrappingProvider\WrappingProviderFactoryService.cs" />
+    <Compile Include="WrappingProvider\WrappingProviderInvariantName.cs" />
+    <Compile Include="WrappingProvider\WrappingProviderTests.cs" />
+    <Compile Include="WrappingProvider\WrappingSqlGenerator.cs" />
+    <Compile Include="WrappingProvider\WrappingTransaction.cs" />
     <Service Include="{508349B6-6B84-4DF5-91F0-309BEEBAD82D}" />
     <Compile Include="EntityClient\AsyncScenarios.cs" />
     <Compile Include="EntityClient\DependencyResolverTests.cs" />
@@ -149,6 +231,12 @@
     <Compile Include="Migrations\AutoAndGenerateScenarios.cs" />
     <Compile Include="Migrations\AutoAndGenerateTestCase.cs" />
     <Compile Include="Migrations\AddPrimaryKeyScenarios.cs" />
+    <Compile Include="Migrations\TestHelpers\MigrationMetadataHelper.cs" />
+    <Compile Include="Migrations\TestModel\CommentOperation.cs" />
+    <Compile Include="Migrations\TestModel\CustomOperationExtensions.cs" />
+    <Compile Include="Migrations\TestModel\CustomOperationMigration.cs" />
+    <Compile Include="Migrations\CustomOperationScenarios.cs" />
+    <Compile Include="Migrations\TestModel\CustomSqlGenerator.cs" />
     <Compile Include="Migrations\MultiTenantScenarios.cs" />
     <Compile Include="Migrations\SchemaScenarios.cs" />
     <Compile Include="Migrations\CreateIndexScenarios.cs" />
@@ -169,8 +257,6 @@
     <Compile Include="Migrations\TestModel\TestMigration.cs" />
     <Compile Include="Objects\LazyLoadingTests.cs" />
     <Compile Include="Objects\SerializationScenarios.cs" />
-    <Compile Include="PlanCompiler\AnonymousTypeTests.cs" />
-    <Compile Include="PlanCompiler\LinqGroupByTests.cs" />
     <Compile Include="ProductivityApi\DbConfigurationTests.cs" />
     <Compile Include="ProductivityApi\ScaffoldingScenarioTests.cs" />
     <Compile Include="ProductivityApi\SimpleScenariosForLocalDb.cs" />
@@ -186,6 +272,7 @@
     <Compile Include="Query\LinqToEntities\MaterializationTests.cs" />
     <Compile Include="Query\LinqToEntities\OrderByLiftingTests.cs" />
     <Compile Include="Query\QueryEnumTests.cs" />
+    <Compile Include="Query\SpatialTests.cs" />
     <Compile Include="SqlClient\SqlProviderServicesTests.cs" />
     <Compile Include="Query\SqlGeneratorTests.cs" />
     <Compile Include="TestHelpers\EnumeratorExtensions.cs" />

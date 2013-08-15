@@ -21,24 +21,16 @@ namespace System.Data.Entity.Config
         // thread-unsafe use.
         private bool _isLocked;
 
-        /// <summary>
-        ///     Any class derived from <see cref="DbConfiguration" /> must have a public parameterless constructor
-        ///     and that constructor should call this constructor.
-        /// </summary>
-        public InternalConfiguration()
-            : this(new ResolverChain(), new ResolverChain(), new RootDependencyResolver())
+        public InternalConfiguration(
+            ResolverChain appConfigChain = null,
+            ResolverChain normalResolverChain = null,
+            RootDependencyResolver rootResolver = null,
+            AppConfigDependencyResolver appConfigResolver = null)
         {
-            _resolvers.First.Add(new AppConfigDependencyResolver(AppConfig.DefaultInstance));
-        }
-
-        public InternalConfiguration(ResolverChain appConfigChain, ResolverChain normalResolverChain, RootDependencyResolver rootResolver)
-        {
-            DebugCheck.NotNull(appConfigChain);
-            DebugCheck.NotNull(normalResolverChain);
-
-            _rootResolver = rootResolver;
-            _resolvers = new CompositeResolver<ResolverChain, ResolverChain>(appConfigChain, normalResolverChain);
+            _rootResolver = rootResolver ?? new RootDependencyResolver();
+            _resolvers = new CompositeResolver<ResolverChain, ResolverChain>(appConfigChain ?? new ResolverChain(), normalResolverChain ?? new ResolverChain());
             _resolvers.Second.Add(_rootResolver);
+            _resolvers.First.Add(appConfigResolver ?? new AppConfigDependencyResolver(AppConfig.DefaultInstance, this));
         }
 
         /// <summary>
@@ -81,6 +73,23 @@ namespace System.Data.Entity.Config
             (overrideConfigFile ? _resolvers.First : _resolvers.Second).Add(resolver);
         }
 
+        public virtual void AddSecondaryResolver(IDbDependencyResolver resolver)
+        {
+            DebugCheck.NotNull(resolver);
+
+            // Secondary resolvers only kick in if nothing else before the root resolves the dependency.
+            _rootResolver.AddSecondaryResolver(resolver);
+        }
+
+        public virtual void RegisterSingleton<TService>(TService instance)
+            where TService : class
+        {
+            DebugCheck.NotNull(instance);
+            Debug.Assert(!_isLocked);
+
+            AddDependencyResolver(new SingletonDependencyResolver<TService>(instance, (object)null));
+        }
+
         public virtual void RegisterSingleton<TService>(TService instance, object key)
             where TService : class
         {
@@ -88,6 +97,15 @@ namespace System.Data.Entity.Config
             Debug.Assert(!_isLocked);
 
             AddDependencyResolver(new SingletonDependencyResolver<TService>(instance, key));
+        }
+
+        public virtual void RegisterSingleton<TService>(TService instance, Func<object, bool> keyPredicate)
+            where TService : class
+        {
+            DebugCheck.NotNull(instance);
+            Debug.Assert(!_isLocked);
+
+            AddDependencyResolver(new SingletonDependencyResolver<TService>(instance, keyPredicate));
         }
 
         public virtual TService GetService<TService>(object key)

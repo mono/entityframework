@@ -5,6 +5,7 @@ namespace System.Data.Entity.Migrations
     using System.Collections.Generic;
     using System.ComponentModel;
     using System.Data.Entity.Migrations.Builders;
+    using System.Data.Entity.Migrations.Infrastructure;
     using System.Data.Entity.Migrations.Model;
     using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
@@ -14,7 +15,7 @@ namespace System.Data.Entity.Migrations
     /// <summary>
     ///     Base class for code-based migrations.
     /// </summary>
-    public abstract class DbMigration
+    public abstract class DbMigration : IDbMigration
     {
         private readonly List<MigrationOperation> _operations = new List<MigrationOperation>();
 
@@ -28,6 +29,60 @@ namespace System.Data.Entity.Migrations
         /// </summary>
         public virtual void Down()
         {
+        }
+
+        [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
+        public void CreateStoredProcedure(string name, string body, object anonymousArguments = null)
+        {
+            Check.NotEmpty(name, "name");
+            Check.NotEmpty(body, "body");
+
+            CreateStoredProcedure<object>(name, _ => new { }, body, anonymousArguments);
+        }
+
+        [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
+        public void CreateStoredProcedure<TParameters>(
+            string name,
+            Func<ParameterBuilder, TParameters> parametersAction,
+            string body,
+            object anonymousArguments = null)
+        {
+            Check.NotEmpty(name, "name");
+            Check.NotNull(parametersAction, "parametersAction");
+            Check.NotEmpty(body, "body");
+
+            var createProcedureOperation = new CreateProcedureOperation(name, body, anonymousArguments);
+
+            AddOperation(createProcedureOperation);
+
+            var parameters = parametersAction(new ParameterBuilder());
+
+            parameters.GetType().GetProperties()
+                      .Each(
+                          (p, i) =>
+                              {
+                                  var parameterModel = p.GetValue(parameters, null) as ParameterModel;
+
+                                  if (parameterModel != null)
+                                  {
+                                      if (string.IsNullOrWhiteSpace(parameterModel.Name))
+                                      {
+                                          parameterModel.Name = p.Name;
+                                      }
+
+                                      createProcedureOperation.Parameters.Add(parameterModel);
+                                  }
+                              });
+        }
+
+        [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
+        public void DropStoredProcedure(
+            string name,
+            object anonymousArguments = null)
+        {
+            Check.NotEmpty(name, "name");
+
+            AddOperation(new DropProcedureOperation(name, anonymousArguments));
         }
 
         /// <summary>
@@ -596,6 +651,13 @@ namespace System.Data.Entity.Migrations
                     {
                         SuppressTransaction = suppressTransaction
                     });
+        }
+
+        /// <inheritdoc />
+        [SuppressMessage("Microsoft.Design", "CA1033:InterfaceMethodsShouldBeCallableByChildTypes")]
+        void IDbMigration.AddOperation(MigrationOperation migrationOperation)
+        {
+            AddOperation(migrationOperation);
         }
 
         internal void AddOperation(MigrationOperation migrationOperation)

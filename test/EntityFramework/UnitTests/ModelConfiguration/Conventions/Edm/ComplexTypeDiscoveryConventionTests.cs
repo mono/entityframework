@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
-namespace System.Data.Entity.ModelConfiguration.Conventions.UnitTests
+namespace System.Data.Entity.ModelConfiguration.Conventions
 {
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.ModelConfiguration.Configuration.Types;
@@ -65,7 +65,7 @@ namespace System.Data.Entity.ModelConfiguration.Conventions.UnitTests
             EntityType declaringEntityType;
             EntityType complexEntityType;
             var model = CreateModelFixture(out declaringEntityType, out complexEntityType);
-            complexEntityType.BaseType = new EntityType();
+            complexEntityType.BaseType = new EntityType("E", "N", DataSpace.CSpace);
 
             ((IEdmConvention)new ComplexTypeDiscoveryConvention()).Apply(model);
 
@@ -104,10 +104,10 @@ namespace System.Data.Entity.ModelConfiguration.Conventions.UnitTests
             EntityType complexEntityType;
             var model = CreateModelFixture(out declaringEntityType, out complexEntityType);
             var associationType
-                = new AssociationType
+                = new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace)
                       {
-                          SourceEnd = new AssociationEndMember("S", new EntityType()),
-                          TargetEnd = new AssociationEndMember("T", new EntityType())
+                          SourceEnd = new AssociationEndMember("S", new EntityType("E", "N", DataSpace.CSpace)),
+                          TargetEnd = new AssociationEndMember("T", new EntityType("E", "N", DataSpace.CSpace))
                       };
             complexEntityType.AddNavigationProperty("N", associationType);
 

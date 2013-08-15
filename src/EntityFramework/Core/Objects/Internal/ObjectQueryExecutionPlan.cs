@@ -12,13 +12,14 @@ namespace System.Data.Entity.Core.Objects.Internal
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Core.Objects.ELinq;
     using System.Data.Entity.Infrastructure;
-    using System.Data.Entity.Utilities;
     using System.Diagnostics;
     using System.Diagnostics.CodeAnalysis;
     using System.Text;
-#if !NET40
     using System.Threading;
     using System.Threading.Tasks;
+
+#if !NET40
+
 #endif
 
     /// <summary>
@@ -145,7 +146,8 @@ namespace System.Data.Entity.Core.Objects.Internal
                 using (var entityCommand = PrepareEntityCommand(context, parameterValues))
                 {
                     // acquire store reader
-                    storeReader = entityCommand.GetCommandDefinition().ExecuteStoreCommands(entityCommand,
+                    storeReader = entityCommand.GetCommandDefinition().ExecuteStoreCommands(
+                        entityCommand,
                         Streaming
                             ? CommandBehavior.Default
                             : CommandBehavior.SequentialAccess);
@@ -155,23 +157,26 @@ namespace System.Data.Entity.Core.Objects.Internal
                 Shaper<TResultType> shaper;
                 if (Streaming)
                 {
-                    shaper = shaperFactory.Create(storeReader, context, context.MetadataWorkspace, MergeOption, true, useSpatialReader: true);
+                    shaper = shaperFactory.Create(
+                        storeReader, context, context.MetadataWorkspace, MergeOption, true, useSpatialReader: true,
+                        shouldReleaseConnection: Streaming);
                 }
                 else
                 {
                     var storeItemCollection = (StoreItemCollection)context.MetadataWorkspace.GetItemCollection(DataSpace.SSpace);
                     var providerServices = DbConfiguration.GetService<DbProviderServices>(storeItemCollection.StoreProviderInvariantName);
-                    
+
                     bufferedReader = new BufferedDataReader(storeReader);
                     bufferedReader.Initialize(storeItemCollection.StoreProviderManifestToken, providerServices);
 
-                    shaper = shaperFactory.Create(bufferedReader, context, context.MetadataWorkspace, MergeOption, true, useSpatialReader: false);
+                    shaper = shaperFactory.Create(
+                        bufferedReader, context, context.MetadataWorkspace, MergeOption, true, useSpatialReader: false,
+                        shouldReleaseConnection: Streaming);
                 }
 
                 // create materializer delegate
                 TypeUsage resultItemEdmType;
-                if (ResultType.EdmType.BuiltInTypeKind
-                    == BuiltInTypeKind.CollectionType)
+                if (ResultType.EdmType.BuiltInTypeKind == BuiltInTypeKind.CollectionType)
                 {
                     resultItemEdmType = ((CollectionType)ResultType.EdmType).TypeUsage;
                 }
@@ -191,7 +196,8 @@ namespace System.Data.Entity.Core.Objects.Internal
                     storeReader.Dispose();
                 }
 
-                if (!Streaming && bufferedReader != null)
+                if (!Streaming
+                    && bufferedReader != null)
                 {
                     bufferedReader.Dispose();
                 }
@@ -214,11 +220,12 @@ namespace System.Data.Entity.Core.Objects.Internal
                     // acquire store reader
                     storeReader = await
                                   entityCommand.GetCommandDefinition()
-                                               .ExecuteStoreCommandsAsync(entityCommand,
-                        Streaming
-                            ? CommandBehavior.Default
-                            : CommandBehavior.SequentialAccess
-                        , cancellationToken)
+                                               .ExecuteStoreCommandsAsync(
+                                                   entityCommand,
+                                                   Streaming
+                                                       ? CommandBehavior.Default
+                                                       : CommandBehavior.SequentialAccess
+                                      , cancellationToken)
                                                .ConfigureAwait(continueOnCapturedContext: false);
                 }
 
@@ -226,7 +233,9 @@ namespace System.Data.Entity.Core.Objects.Internal
                 Shaper<TResultType> shaper;
                 if (Streaming)
                 {
-                    shaper = shaperFactory.Create(storeReader, context, context.MetadataWorkspace, MergeOption, true, useSpatialReader: true);
+                    shaper = shaperFactory.Create(
+                        storeReader, context, context.MetadataWorkspace, MergeOption, true, useSpatialReader: true,
+                        shouldReleaseConnection: Streaming);
                 }
                 else
                 {
@@ -234,10 +243,13 @@ namespace System.Data.Entity.Core.Objects.Internal
                     var providerServices = DbConfiguration.GetService<DbProviderServices>(storeItemCollection.StoreProviderInvariantName);
 
                     bufferedReader = new BufferedDataReader(storeReader);
-                    await bufferedReader.InitializeAsync(storeItemCollection.StoreProviderManifestToken, providerServices, cancellationToken)
-                        .ConfigureAwait(continueOnCapturedContext: false);
+                    await
+                        bufferedReader.InitializeAsync(storeItemCollection.StoreProviderManifestToken, providerServices, cancellationToken)
+                                      .ConfigureAwait(continueOnCapturedContext: false);
 
-                    shaper = shaperFactory.Create(bufferedReader, context, context.MetadataWorkspace, MergeOption, true, useSpatialReader: false);
+                    shaper = shaperFactory.Create(
+                        bufferedReader, context, context.MetadataWorkspace, MergeOption, true, useSpatialReader: false,
+                        shouldReleaseConnection: Streaming);
                 }
 
                 // create materializer delegate
@@ -264,7 +276,8 @@ namespace System.Data.Entity.Core.Objects.Internal
                     storeReader.Dispose();
                 }
 
-                if (!Streaming && bufferedReader != null)
+                if (!Streaming
+                    && bufferedReader != null)
                 {
                     bufferedReader.Dispose();
                 }
@@ -280,7 +293,8 @@ namespace System.Data.Entity.Core.Objects.Internal
         {
             // create entity command (just do this to snarf store command)
             var commandDefinition = (EntityCommandDefinition)CommandDefinition;
-            var entityCommand = new EntityCommand((EntityConnection)context.Connection, commandDefinition);
+            var entityCommand = new EntityCommand(
+                (EntityConnection)context.Connection, commandDefinition, context.InterceptionContext);
 
             // pass through parameters and timeout values
             if (context.CommandTimeout.HasValue)

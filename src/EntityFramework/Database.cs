@@ -5,6 +5,7 @@ namespace System.Data.Entity
     using System.ComponentModel;
     using System.Data.Common;
     using System.Data.Entity.Config;
+    using System.Data.Entity.Core.EntityClient;
     using System.Data.Entity.Core.Objects;
     using System.Data.Entity.Infrastructure;
     using System.Data.Entity.Internal;
@@ -44,6 +45,54 @@ namespace System.Data.Entity
             DebugCheck.NotNull(internalContext);
 
             _internalContext = internalContext;
+        }
+
+        #endregion
+
+        #region Transactions
+
+        /// <summary>
+        ///     Enables the user to pass in a database transaction created outside of the <see cref="Database" /> object
+        ///     if you want the Entity Framework to execute commands within that external transaction.
+        ///     Alternatively, pass in null to clear the framework's knowledge of that transaction.
+        /// </summary>
+        /// <param name="transaction">the external transaction</param>
+        /// <exception cref="InvalidOperationException">Thrown if the transaction is already completed</exception>
+        /// <exception cref="InvalidOperationException">
+        ///     Thrown if the connection associated with the <see cref="Database" /> object is already enlisted in a
+        ///     <see
+        ///         cref="System.Transactions.TransactionScope" />
+        ///     transaction
+        /// </exception>
+        /// <exception cref="InvalidOperationException">
+        ///     Thrown if the connection associated with the <see cref="Database" /> object is already participating in a transaction
+        /// </exception>
+        /// <exception cref="InvalidOperationException">Thrown if the connection associated with the transaction does not match the Entity Framework's connection</exception>
+        public void UseTransaction(DbTransaction transaction)
+        {
+            ((EntityConnection)_internalContext.ObjectContext.Connection).UseStoreTransaction(transaction);
+        }
+
+        /// <summary>
+        ///     Begins a transaction on the underlying store connection
+        /// </summary>
+        /// <returns>
+        ///     a <see cref="DbContextTransaction" /> object wrapping access to the underlying store's transaction object
+        /// </returns>
+        public DbContextTransaction BeginTransaction()
+        {
+            return new DbContextTransaction((EntityConnection)_internalContext.ObjectContext.Connection);
+        }
+
+        /// <summary>
+        ///     Begins a transaction on the underlying store connection using the specified isolation level
+        /// </summary>
+        /// <returns>
+        ///     a <see cref="DbContextTransaction" /> object wrapping access to the underlying store's transaction object
+        /// </returns>
+        public DbContextTransaction BeginTransaction(IsolationLevel isolationLevel)
+        {
+            return new DbContextTransaction((EntityConnection)_internalContext.ObjectContext.Connection, isolationLevel);
         }
 
         #endregion
@@ -429,49 +478,123 @@ namespace System.Data.Entity
         /// <summary>
         ///     Executes the given DDL/DML command against the database.
         /// </summary>
+        /// <remarks>
+        ///     If there isn't an existing local or ambient transaction a new transaction will be used
+        ///     to execute the command.
+        /// </remarks>
         /// <param name="sql"> The command string. </param>
         /// <param name="parameters"> The parameters to apply to the command string. </param>
         /// <returns> The result returned by the database after executing the command. </returns>
         public int ExecuteSqlCommand(string sql, params object[] parameters)
         {
+            return ExecuteSqlCommand(TransactionalBehavior.EnsureTransaction, sql, parameters);
+        }
+
+        /// <summary>
+        ///     Executes the given DDL/DML command against the database.
+        /// </summary>
+        /// <param name="transactionalBehavior"> Controls the creation of a transaction for this command. </param>
+        /// <param name="sql"> The command string. </param>
+        /// <param name="parameters"> The parameters to apply to the command string. </param>
+        /// <returns> The result returned by the database after executing the command. </returns>
+        public int ExecuteSqlCommand(TransactionalBehavior transactionalBehavior, string sql, params object[] parameters)
+        {
             Check.NotEmpty(sql, "sql");
             Check.NotNull(parameters, "parameters");
 
-            return _internalContext.ExecuteSqlCommand(sql, parameters);
+            return _internalContext.ExecuteSqlCommand(transactionalBehavior, sql, parameters);
         }
 
 #if !NET40
 
         /// <summary>
-        ///     An asynchronous version of ExecuteSqlCommand, which
-        ///     executes the given DDL/DML command against the database.
+        ///     Asynchronously executes the given DDL/DML command against the database.
         /// </summary>
+        /// <remarks>
+        ///     Multiple active operations on the same context instance are not supported.  Use 'await' to ensure
+        ///     that any asynchronous operations have completed before calling another method on this context.
+        /// 
+        ///     If there isn't an existing local transaction a new transaction will be used
+        ///     to execute the command.
+        /// </remarks>
         /// <param name="sql"> The command string. </param>
         /// <param name="parameters"> The parameters to apply to the command string. </param>
-        /// <returns> A Task containing the result returned by the database after executing the command. </returns>
+        /// <returns>
+        ///     A task that represents the asynchronous operation.
+        ///     The task result contains the result returned by the database after executing the command.
+        /// </returns>
         public Task<int> ExecuteSqlCommandAsync(string sql, params object[] parameters)
         {
-            Check.NotEmpty(sql, "sql");
-            Check.NotNull(parameters, "parameters");
-
-            return ExecuteSqlCommandAsync(sql, CancellationToken.None, parameters);
+            return ExecuteSqlCommandAsync(TransactionalBehavior.EnsureTransaction, sql, CancellationToken.None, parameters);
         }
 
         /// <summary>
-        ///     An asynchronous version of ExecuteSqlCommand, which
-        ///     executes the given DDL/DML command against the database.
+        ///     Asynchronously executes the given DDL/DML command against the database.
         /// </summary>
+        /// <remarks>
+        ///     Multiple active operations on the same context instance are not supported.  Use 'await' to ensure
+        ///     that any asynchronous operations have completed before calling another method on this context.
+        /// </remarks>
+        /// <param name="transactionalBehavior"> Controls the creation of a transaction for this command. </param>
         /// <param name="sql"> The command string. </param>
-        /// <param name="cancellationToken"> The token to monitor for cancellation requests. </param>
         /// <param name="parameters"> The parameters to apply to the command string. </param>
-        /// <returns> A Task containing the result returned by the database after executing the command. </returns>
-        [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
+        /// <returns>
+        ///     A task that represents the asynchronous operation.
+        ///     The task result contains the result returned by the database after executing the command.
+        /// </returns>
+        public Task<int> ExecuteSqlCommandAsync(TransactionalBehavior transactionalBehavior, string sql, params object[] parameters)
+        {
+            return ExecuteSqlCommandAsync(transactionalBehavior, sql, CancellationToken.None, parameters);
+        }
+
+        /// <summary>
+        ///     Asynchronously executes the given DDL/DML command against the database.
+        /// </summary>
+        /// <remarks>
+        ///     Multiple active operations on the same context instance are not supported.  Use 'await' to ensure
+        ///     that any asynchronous operations have completed before calling another method on this context.
+        /// 
+        ///     If there isn't an existing local transaction a new transaction will be used
+        ///     to execute the command.
+        /// </remarks>
+        /// <param name="sql"> The command string. </param>
+        /// <param name="cancellationToken">
+        ///     A <see cref="CancellationToken" /> to observe while waiting for the task to complete.
+        /// </param>
+        /// <param name="parameters"> The parameters to apply to the command string. </param>
+        /// <returns>
+        ///     A task that represents the asynchronous operation.
+        ///     The task result contains the result returned by the database after executing the command.
+        /// </returns>
         public Task<int> ExecuteSqlCommandAsync(string sql, CancellationToken cancellationToken, params object[] parameters)
+        {
+            return ExecuteSqlCommandAsync(TransactionalBehavior.EnsureTransaction, sql, cancellationToken, parameters);
+        }
+
+        /// <summary>
+        ///     Asynchronously executes the given DDL/DML command against the database.
+        /// </summary>
+        /// <remarks>
+        ///     Multiple active operations on the same context instance are not supported.  Use 'await' to ensure
+        ///     that any asynchronous operations have completed before calling another method on this context.
+        /// </remarks>
+        /// <param name="transactionalBehavior"> Controls the creation of a transaction for this command. </param>
+        /// <param name="sql"> The command string. </param>
+        /// <param name="cancellationToken">
+        ///     A <see cref="CancellationToken" /> to observe while waiting for the task to complete.
+        /// </param>
+        /// <param name="parameters"> The parameters to apply to the command string. </param>
+        /// <returns>
+        ///     A task that represents the asynchronous operation.
+        ///     The task result contains the result returned by the database after executing the command.
+        /// </returns>
+        public Task<int> ExecuteSqlCommandAsync(
+            TransactionalBehavior transactionalBehavior, string sql, CancellationToken cancellationToken, params object[] parameters)
         {
             Check.NotEmpty(sql, "sql");
             Check.NotNull(parameters, "parameters");
 
-            return _internalContext.ExecuteSqlCommandAsync(sql, cancellationToken, parameters);
+            return _internalContext.ExecuteSqlCommandAsync(transactionalBehavior, sql, cancellationToken, parameters);
         }
 
 #endif
@@ -506,5 +629,28 @@ namespace System.Data.Entity
         }
 
         #endregion
+
+        /// <summary>
+        ///     Gets or sets the timeout value, in seconds, for all context operations.
+        ///     The default value is null, where null indicates that the default value of the underlying
+        ///     provider will be used.
+        /// </summary>
+        /// <value>
+        ///     The timeout, in seconds, or null to use the provider default.
+        /// </value>
+        public int? CommandTimeout
+        {
+            get { return _internalContext.CommandTimeout; }
+            set
+            {
+                if (value.HasValue
+                    && value < 0)
+                {
+                    throw new ArgumentException(Strings.ObjectContext_InvalidCommandTimeout);
+                }
+
+                _internalContext.CommandTimeout = value;
+            }
+        }
     }
 }

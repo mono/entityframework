@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
-namespace System.Data.Entity.ModelConfiguration.Conventions.UnitTests
+namespace System.Data.Entity.ModelConfiguration.Conventions
 {
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.ModelConfiguration.Edm;
@@ -12,7 +12,7 @@ namespace System.Data.Entity.ModelConfiguration.Conventions.UnitTests
         public void Apply_should_set_pluralized_name()
         {
             var model = new EdmModel(DataSpace.CSpace);
-            var entitySet = model.AddEntitySet("Cat", new EntityType());
+            var entitySet = model.AddEntitySet("Cat", new EntityType("E", "N", DataSpace.CSpace));
 
             ((IEdmConvention<EntitySet>)new PluralizingEntitySetNameConvention())
                 .Apply(entitySet, model);
@@ -24,7 +24,7 @@ namespace System.Data.Entity.ModelConfiguration.Conventions.UnitTests
         public void Apply_should_ignore_current_entity_set()
         {
             var model = new EdmModel(DataSpace.CSpace);
-            var entitySet = model.AddEntitySet("Cats", new EntityType());
+            var entitySet = model.AddEntitySet("Cats", new EntityType("E", "N", DataSpace.CSpace));
 
             ((IEdmConvention<EntitySet>)new PluralizingEntitySetNameConvention())
                 .Apply(entitySet, model);
@@ -36,8 +36,8 @@ namespace System.Data.Entity.ModelConfiguration.Conventions.UnitTests
         public void Apply_should_uniquify_names()
         {
             var model = new EdmModel(DataSpace.CSpace);
-            model.AddEntitySet("Cats", new EntityType());
-            var entitySet = model.AddEntitySet("Cat", new EntityType());
+            model.AddEntitySet("Cats", new EntityType("E", "N", DataSpace.CSpace));
+            var entitySet = model.AddEntitySet("Cat", new EntityType("E", "N", DataSpace.CSpace));
 
             ((IEdmConvention<EntitySet>)new PluralizingEntitySetNameConvention())
                 .Apply(entitySet, model);
@@ -49,9 +49,9 @@ namespace System.Data.Entity.ModelConfiguration.Conventions.UnitTests
         public void Apply_should_uniquify_names_multiple()
         {
             var model = new EdmModel(DataSpace.CSpace);
-            model.AddEntitySet("Cats1", new EntityType());
-            var entitySet1 = model.AddEntitySet("Cats", new EntityType());
-            var entitySet2 = model.AddEntitySet("Cat", new EntityType());
+            model.AddEntitySet("Cats1", new EntityType("E", "N", DataSpace.CSpace));
+            var entitySet1 = model.AddEntitySet("Cats", new EntityType("E", "N", DataSpace.CSpace));
+            var entitySet2 = model.AddEntitySet("Cat", new EntityType("E", "N", DataSpace.CSpace));
 
             ((IEdmConvention<EntitySet>)new PluralizingEntitySetNameConvention())
                 .Apply(entitySet1, model);

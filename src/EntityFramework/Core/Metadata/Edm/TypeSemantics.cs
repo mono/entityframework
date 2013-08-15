@@ -989,7 +989,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
             return true;
         }
 
-        private static bool TryGetCommonBaseType(EdmType type1, EdmType type2, out EdmType commonBaseType)
+        internal static bool TryGetCommonBaseType(EdmType type1, EdmType type2, out EdmType commonBaseType)
         {
             // put all the other base types in a dictionary
             var otherBaseTypes = new Dictionary<EdmType, byte>();
@@ -1048,7 +1048,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
             return false;
         }
 
-        /// Determines if the given edmType is order comparable. Consult "EntitySql Language Specification", 
+        /// Determines if the given edmType is order comparable. Consult "EntitySql Language Specification",
         /// section 7 - Comparison and Dependent Operations for details.
         /// </summary>
         /// <param name="edmType"> an instance of an EdmType </param>

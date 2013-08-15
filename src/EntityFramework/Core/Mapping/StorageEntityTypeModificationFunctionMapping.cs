@@ -2,15 +2,26 @@
 
 namespace System.Data.Entity.Core.Mapping
 {
+    using System.Collections.Generic;
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Utilities;
     using System.Globalization;
+    using System.Linq;
 
     /// <summary>
     ///     Describes modification function mappings for an entity type within an entity set.
     /// </summary>
-    internal sealed class StorageEntityTypeModificationFunctionMapping
+    public sealed class StorageEntityTypeModificationFunctionMapping
     {
+        private readonly StorageModificationFunctionMapping _deleteFunctionMapping;
+        private readonly StorageModificationFunctionMapping _insertFunctionMapping;
+        private readonly StorageModificationFunctionMapping _updateFunctionMapping;
+
+        internal StorageEntityTypeModificationFunctionMapping()
+        {
+            // Testing
+        }
+
         internal StorageEntityTypeModificationFunctionMapping(
             EntityType entityType,
             StorageModificationFunctionMapping deleteFunctionMapping,
@@ -20,9 +31,9 @@ namespace System.Data.Entity.Core.Mapping
             DebugCheck.NotNull(entityType);
 
             EntityType = entityType;
-            DeleteFunctionMapping = deleteFunctionMapping;
-            InsertFunctionMapping = insertFunctionMapping;
-            UpdateFunctionMapping = updateFunctionMapping;
+            _deleteFunctionMapping = deleteFunctionMapping;
+            _insertFunctionMapping = insertFunctionMapping;
+            _updateFunctionMapping = updateFunctionMapping;
         }
 
         /// <summary>
@@ -33,17 +44,51 @@ namespace System.Data.Entity.Core.Mapping
         /// <summary>
         ///     Gets delete function for the current entity type.
         /// </summary>
-        internal readonly StorageModificationFunctionMapping DeleteFunctionMapping;
+        public StorageModificationFunctionMapping DeleteFunctionMapping
+        {
+            get { return _deleteFunctionMapping; }
+        }
 
         /// <summary>
         ///     Gets insert function for the current entity type.
         /// </summary>
-        internal readonly StorageModificationFunctionMapping InsertFunctionMapping;
+        public StorageModificationFunctionMapping InsertFunctionMapping
+        {
+            get { return _insertFunctionMapping; }
+        }
 
         /// <summary>
         ///     Gets update function for the current entity type.
         /// </summary>
-        internal readonly StorageModificationFunctionMapping UpdateFunctionMapping;
+        public StorageModificationFunctionMapping UpdateFunctionMapping
+        {
+            get { return _updateFunctionMapping; }
+        }
+
+        internal IEnumerable<StorageModificationFunctionParameterBinding> PrimaryParameterBindings
+        {
+            get
+            {
+                var result = Enumerable.Empty<StorageModificationFunctionParameterBinding>();
+
+                if (DeleteFunctionMapping != null)
+                {
+                    result = result.Concat(DeleteFunctionMapping.ParameterBindings);
+                }
+
+                if (InsertFunctionMapping != null)
+                {
+                    result = result.Concat(InsertFunctionMapping.ParameterBindings);
+                }
+
+                if (UpdateFunctionMapping != null)
+                {
+                    result = result.Concat(UpdateFunctionMapping.ParameterBindings.Where(pb => pb.IsCurrent));
+                }
+
+                return result;
+            }
+        }
 
         public override string ToString()
         {

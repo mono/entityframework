@@ -2,7 +2,7 @@
 
 namespace System.Data.Entity.Query.LinqToEntities
 {
-    using System.Data.Entity.Core.Objects.SqlClient;
+    using System.Data.Entity.SqlServer;
     using System.Data.Entity.TestModels.ArubaModel;
     using System.Linq;
     using Xunit;
@@ -493,6 +493,21 @@ FROM [dbo].[ArubaOwners] AS [Extent1]";
 
                     var query7 = context.AllTypes.Select(a => Math.Abs(a.c10_float));
                     Assert.Contains("ABS", query7.ToString().ToUpperInvariant());
+                }
+            }
+
+            [Fact]
+            public void Truncates_properly_translated_to_function()
+            {
+                using (var context = new ArubaContext())
+                {
+                    var query1 = context.AllTypes.Select(a => Math.Truncate(a.c7_decimal_28_4));
+                    Assert.Contains("ROUND", query1.ToString().ToUpperInvariant());
+                    Assert.Contains("0", query1.ToString().ToUpperInvariant());
+
+                    var query2 = context.AllTypes.Select(a => Math.Truncate(a.c10_float));
+                    Assert.Contains("ROUND", query2.ToString().ToUpperInvariant());
+                    Assert.Contains("0", query2.ToString().ToUpperInvariant());
                 }
             }
 

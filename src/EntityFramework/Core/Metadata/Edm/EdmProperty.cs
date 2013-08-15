@@ -5,16 +5,18 @@ namespace System.Data.Entity.Core.Metadata.Edm
     using System.Collections.Generic;
     using System.Data.Entity.Core.Common;
     using System.Data.Entity.Core.Common.Utils;
+    using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
     using System.Diagnostics;
     using System.Diagnostics.CodeAnalysis;
+    using System.Linq;
     using System.Reflection;
     using System.Threading;
 
     /// <summary>
     ///     Represent the edm property class
     /// </summary>
-    public sealed class EdmProperty : EdmMember
+    public class EdmProperty : EdmMember
     {
         [SuppressMessage("Microsoft.Design", "CA1011:ConsiderPassingBaseTypesAsParameters")]
         public static EdmProperty Primitive(string name, PrimitiveType primitiveType)
@@ -45,6 +47,30 @@ namespace System.Data.Entity.Core.Metadata.Edm
             property.Nullable = false;
 
             return property;
+        }
+
+        /// <summary>
+        ///     Creates a new instance of EdmProperty type.
+        /// </summary>
+        /// <param name="name">Name of the property.</param>
+        /// <param name="typeUsage">
+        ///     Property <see cref="TypeUsage" />
+        /// </param>
+        /// <returns>A new instance of EdmProperty type</returns>
+        public static EdmProperty Create(string name, TypeUsage typeUsage)
+        {
+            Check.NotEmpty(name, "name");
+            Check.NotNull(typeUsage, "primitiveType");
+
+            var edmType = typeUsage.EdmType;
+            if (!(Helper.IsPrimitiveType(edmType)
+                  || Helper.IsEnumType(edmType)
+                  || Helper.IsComplexType(edmType)))
+            {
+                throw new ArgumentException(Strings.EdmProperty_InvalidPropertyType(edmType.FullName));
+            }
+
+            return new EdmProperty(name, typeUsage);
         }
 
         private static EdmProperty CreateProperty(string name, EdmType edmType)
@@ -122,15 +148,21 @@ namespace System.Data.Entity.Core.Metadata.Edm
         private Action<object, object> _memberSetter;
 
         /// <summary>
-        ///     Returns the kind of the type
+        ///     Gets the built-in type kind for this <see cref="T:System.Data.Entity.Core.Metadata.Edm.EdmProperty" />.
         /// </summary>
+        /// <returns>
+        ///     A <see cref="T:System.Data.Entity.Core.Metadata.Edm.BuiltInTypeKind" /> object that represents the built-in type kind for this
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Metadata.Edm.EdmProperty" />
+        ///     .
+        /// </returns>
         public override BuiltInTypeKind BuiltInTypeKind
         {
             get { return BuiltInTypeKind.EdmProperty; }
         }
 
         /// <summary>
-        ///     Returns true if this property is nullable.
+        ///     Gets a value indicating whether this <see cref="T:System.Data.Entity.Core.Metadata.Edm.EdmProperty" /> can have a null value.
         /// </summary>
         /// <remarks>
         ///     Nullability in the conceptual model and store model is a simple indication of whether or not
@@ -149,6 +181,9 @@ namespace System.Data.Entity.Core.Metadata.Edm
         ///     There is no good reason to set a non-nullable CLR type as nullable in the object model and this
         ///     should not be done even though the attribute allows it.
         /// </remarks>
+        /// <returns>
+        ///     true if this <see cref="T:System.Data.Entity.Core.Metadata.Edm.EdmProperty" /> can have a null value; otherwise, false.
+        /// </returns>
         /// <exception cref="System.InvalidOperationException">Thrown if the setter is called when the EdmProperty instance is in ReadOnly state</exception>
         public bool Nullable
         {
@@ -171,8 +206,11 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     Returns the default value for this property
+        ///     Gets the default value for this <see cref="T:System.Data.Entity.Core.Metadata.Edm.EdmProperty" />.
         /// </summary>
+        /// <returns>
+        ///     The default value for this <see cref="T:System.Data.Entity.Core.Metadata.Edm.EdmProperty" />.
+        /// </returns>
         /// <exception cref="System.InvalidOperationException">Thrown if the setter is called when the EdmProperty instance is in ReadOnly state</exception>
         public Object DefaultValue
         {
@@ -342,24 +380,38 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
         }
 
+        public bool IsMaxLengthConstant
+        {
+            get
+            {
+                Facet facet;
+                return
+                    TypeUsage.Facets.TryGetValue(DbProviderManifest.MaxLengthFacetName, false, out facet)
+                    && facet.Description.IsConstant;
+            }
+        }
+
         public int? MaxLength
         {
             get
             {
                 Facet facet;
                 return TypeUsage.Facets.TryGetValue(DbProviderManifest.MaxLengthFacetName, false, out facet)
-                           ? (!facet.Description.IsConstant ? facet.Value as int? : null)
+                           ? facet.Value as int?
                            : null;
             }
             set
             {
                 Util.ThrowIfReadOnly(this);
 
-                TypeUsage = TypeUsage.ShallowCopy(
-                    new FacetValues
-                        {
-                            MaxLength = value
-                        });
+                if (MaxLength != value)
+                {
+                    TypeUsage = TypeUsage.ShallowCopy(
+                        new FacetValues
+                            {
+                                MaxLength = value
+                            });
+                }
             }
         }
 
@@ -386,24 +438,49 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
         }
 
+        public bool IsFixedLengthConstant
+        {
+            get
+            {
+                Facet facet;
+                return
+                    TypeUsage.Facets.TryGetValue(DbProviderManifest.FixedLengthFacetName, false, out facet)
+                    && facet.Description.IsConstant;
+            }
+        }
+
         public bool? IsFixedLength
         {
             get
             {
                 Facet facet;
                 return TypeUsage.Facets.TryGetValue(DbProviderManifest.FixedLengthFacetName, false, out facet)
-                           ? (!facet.Description.IsConstant ? facet.Value as bool? : null)
+                           ? facet.Value as bool?
                            : null;
             }
             set
             {
                 Util.ThrowIfReadOnly(this);
 
-                TypeUsage = TypeUsage.ShallowCopy(
-                    new FacetValues
-                        {
-                            FixedLength = value
-                        });
+                if (IsFixedLength != value)
+                {
+                    TypeUsage = TypeUsage.ShallowCopy(
+                        new FacetValues
+                            {
+                                FixedLength = value
+                            });
+                }
+            }
+        }
+
+        public bool IsUnicodeConstant
+        {
+            get
+            {
+                Facet facet;
+                return
+                    TypeUsage.Facets.TryGetValue(DbProviderManifest.UnicodeFacetName, false, out facet)
+                    && facet.Description.IsConstant;
             }
         }
 
@@ -413,18 +490,32 @@ namespace System.Data.Entity.Core.Metadata.Edm
             {
                 Facet facet;
                 return TypeUsage.Facets.TryGetValue(DbProviderManifest.UnicodeFacetName, false, out facet)
-                           ? (!facet.Description.IsConstant ? facet.Value as bool? : null)
+                           ? facet.Value as bool?
                            : null;
             }
             set
             {
                 Util.ThrowIfReadOnly(this);
 
-                TypeUsage = TypeUsage.ShallowCopy(
-                    new FacetValues
-                        {
-                            Unicode = value
-                        });
+                if (IsUnicode != value)
+                {
+                    TypeUsage = TypeUsage.ShallowCopy(
+                        new FacetValues
+                            {
+                                Unicode = value
+                            });
+                }
+            }
+        }
+
+        public bool IsPrecisionConstant
+        {
+            get
+            {
+                Facet facet;
+                return
+                    TypeUsage.Facets.TryGetValue(DbProviderManifest.PrecisionFacetName, false, out facet)
+                    && facet.Description.IsConstant;
             }
         }
 
@@ -434,18 +525,32 @@ namespace System.Data.Entity.Core.Metadata.Edm
             {
                 Facet facet;
                 return TypeUsage.Facets.TryGetValue(DbProviderManifest.PrecisionFacetName, false, out facet)
-                           ? (!facet.Description.IsConstant ? facet.Value as byte? : null)
+                           ? facet.Value as byte?
                            : null;
             }
             set
             {
                 Util.ThrowIfReadOnly(this);
 
-                TypeUsage = TypeUsage.ShallowCopy(
-                    new FacetValues
-                        {
-                            Precision = value
-                        });
+                if (Precision != value)
+                {
+                    TypeUsage = TypeUsage.ShallowCopy(
+                        new FacetValues
+                            {
+                                Precision = value
+                            });
+                }
+            }
+        }
+
+        public bool IsScaleConstant
+        {
+            get
+            {
+                Facet facet;
+                return
+                    TypeUsage.Facets.TryGetValue(DbProviderManifest.ScaleFacetName, false, out facet)
+                    && facet.Description.IsConstant;
             }
         }
 
@@ -455,19 +560,30 @@ namespace System.Data.Entity.Core.Metadata.Edm
             {
                 Facet facet;
                 return TypeUsage.Facets.TryGetValue(DbProviderManifest.ScaleFacetName, false, out facet)
-                           ? (!facet.Description.IsConstant ? facet.Value as byte? : null)
+                           ? facet.Value as byte?
                            : null;
             }
             set
             {
                 Util.ThrowIfReadOnly(this);
 
-                TypeUsage = TypeUsage.ShallowCopy(
-                    new FacetValues
-                        {
-                            Scale = value
-                        });
+                if (Scale != value)
+                {
+                    TypeUsage = TypeUsage.ShallowCopy(
+                        new FacetValues
+                            {
+                                Scale = value
+                            });
+                }
             }
+        }
+
+        public void SetMetadataProperties(IEnumerable<MetadataProperty> metadataProperties)
+        {
+            Check.NotNull(metadataProperties, "metadataProperties");
+
+            Util.ThrowIfReadOnly(this);
+            AddMetadataProperties(metadataProperties.ToList());
         }
     }
 }

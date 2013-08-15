@@ -32,6 +32,13 @@ namespace FunctionalTests
             databaseMapping.Assert<AllBinaryDataTypes>(p => p.NProp_binary_10).DbEqual(false, f => f.IsMaxLength);
         }
 
+        public class AllBinaryDataTypes
+        {
+            public int ID { get; set; }
+            public byte[] Prop_binary_10 { get; set; }
+            public byte[] NProp_binary_10 { get; set; }
+        }
+
         [Fact]
         public void Decimal_property_gets_default_precision_by_convention()
         {
@@ -57,6 +64,13 @@ namespace FunctionalTests
             databaseMapping.Assert<DuplicatePropNames>().HasColumns("Id", "name", "NAME");
         }
 
+        public class DuplicatePropNames
+        {
+            public int Id { get; set; }
+            public string name { get; set; }
+            public string NAME { get; set; }
+        }
+
         [Fact]
         public void Configure_is_max_length_on_property()
         {
@@ -79,15 +93,15 @@ namespace FunctionalTests
             databaseMapping.AssertValid();
 
             databaseMapping.Assert<UnitMeasure>(u => u.Name).FacetEqual(true, c => c.IsMaxLength);
-            // Should be null for nvarchar(max)
+            // nvarchar(max) should use const MaxLength
             databaseMapping.Assert<BillOfMaterials>("BillOfMaterials").Column("UnitMeasure_Name")
                 .DbEqual(false, c => c.IsMaxLength);
             databaseMapping.Assert<UnitMeasure>(u => u.Name).FacetEqual(null, c => c.MaxLength);
             databaseMapping.Assert<BillOfMaterials>("BillOfMaterials").Column("UnitMeasure_Name")
-                .DbEqual(null, c => c.MaxLength);
+                .DbEqual(true, c => c.IsMaxLengthConstant);
             databaseMapping.Assert<UnitMeasure>(u => u.Name).FacetEqual(false, c => c.IsFixedLength);
             databaseMapping.Assert<BillOfMaterials>("BillOfMaterials").Column("UnitMeasure_Name")
-                .DbEqual(null, c => c.IsFixedLength);
+                .DbEqual(true,  c => c.IsFixedLengthConstant);
         }
 
         [Fact]
@@ -298,6 +312,30 @@ namespace FunctionalTests
                     .MetadataProperties.Single(a => a.Name.EndsWith("StoreGeneratedPattern")).Value);
         }
 
+        [ComplexType]
+        public class Address
+        {
+            public string Line1 { get; set; }
+            public string Line2 { get; set; }
+        }
+
+        public class CTEmployee
+        {
+            public int CTEmployeeId { get; set; }
+            public Address HomeAddress { get; set; }
+        }
+
+        public class OffSiteEmployee : CTEmployee
+        {
+            public Address WorkAddress { get; set; }
+        }
+
+        public class Building
+        {
+            public int Id { get; set; }
+            public Address Address { get; set; }
+        }
+
         [Fact]
         public void Configure_IsRequired_on_a_complex_child_property()
         {
@@ -499,6 +537,12 @@ namespace FunctionalTests
                 .DbEqual(true, c => c.IsPrimaryKeyColumn);
         }
 
+        public class TwoManyKeys
+        {
+            public int Id { get; set; }
+            public int ID { get; set; }
+        }
+
         [Fact]
         public void
             Two_properties_that_both_match_the_primary_key_convention_can_be_disambiguated_using_a_data_annotation()
@@ -513,37 +557,13 @@ namespace FunctionalTests
             databaseMapping.Assert<TwoManyKeysWithAnnotation>(e => e.ID)
                 .DbEqual(true, c => c.IsPrimaryKeyColumn);
         }
-    }
 
-    #region Fixtures
+        public class TwoManyKeysWithAnnotation
+        {
+            public int Id { get; set; }
 
-    public class DuplicatePropNames
-    {
-        public int Id { get; set; }
-        public string name { get; set; }
-        public string NAME { get; set; }
-    }
-
-    public class AllBinaryDataTypes
-    {
-        public int ID { get; set; }
-        public byte[] Prop_binary_10 { get; set; }
-        public byte[] NProp_binary_10 { get; set; }
-    }
-
-    #endregion
-
-    public class TwoManyKeys
-    {
-        public int Id { get; set; }
-        public int ID { get; set; }
-    }
-
-    public class TwoManyKeysWithAnnotation
-    {
-        public int Id { get; set; }
-
-        [Key]
-        public int ID { get; set; }
+            [Key]
+            public int ID { get; set; }
+        }
     }
 }

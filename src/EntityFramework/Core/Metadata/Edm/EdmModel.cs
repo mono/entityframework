@@ -12,7 +12,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
     using System.Diagnostics.CodeAnalysis;
     using System.Linq;
 
-    public class EdmModel
+    public class EdmModel : IMetadataItem
     {
         private readonly List<EntityContainer> _containers = new List<EntityContainer>();
         private readonly List<AssociationType> _associationTypes = new List<AssociationType>();
@@ -26,22 +26,20 @@ namespace System.Data.Entity.Core.Metadata.Edm
         private DbProviderInfo _providerInfo;
         private DbProviderManifest _providerManifest;
 
-        public double Version { get; set; }
+        public double SchemaVersion { get; set; }
 
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
-        // Using XmlConstants.EdmVersionForV3 as a "general" EF model version concept 
-        // to avoid adding another constant with a value we already have.
-        public EdmModel(EntityContainer entityContainer, double version = XmlConstants.EdmVersionForV3)
+        public EdmModel(EntityContainer entityContainer, double version = XmlConstants.SchemaVersionLatest)
         {
             Check.NotNull(entityContainer, "entityContainer");
 
             _dataSpace = entityContainer.DataSpace;
             _containers.Add(entityContainer);
-            Version = version;
+            SchemaVersion = version;
         }
 
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
-        public EdmModel(DataSpace dataSpace, double version = XmlConstants.EdmVersionForV3)
+        public EdmModel(DataSpace dataSpace, double version = XmlConstants.SchemaVersionLatest)
         {
             if (dataSpace != DataSpace.CSpace
                 && dataSpace != DataSpace.SSpace)
@@ -57,7 +55,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
                     dataSpace));
 
             _dataSpace = dataSpace;
-            Version = version;
+            SchemaVersion = version;
         }
 
         internal virtual void Validate()

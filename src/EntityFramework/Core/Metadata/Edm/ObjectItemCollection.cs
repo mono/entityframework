@@ -4,7 +4,8 @@ namespace System.Data.Entity.Core.Metadata.Edm
 {
     using System.Collections.Generic;
     using System.Collections.ObjectModel;
-    using System.Data.Entity.Core.Mapping;
+    using System.Data.Entity.Config;
+    using System.Data.Entity.Core.Mapping.ViewGeneration;
     using System.Data.Entity.Core.Metadata.Edm.Provider;
     using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
@@ -18,14 +19,22 @@ namespace System.Data.Entity.Core.Metadata.Edm
     ///     done by ItemCollection
     /// </summary>
     [CLSCompliant(false)]
-    public sealed class ObjectItemCollection : ItemCollection
+    public class ObjectItemCollection : ItemCollection
     {
         /// <summary>
-        ///     The ObjectItemCollection that loads metadata from assemblies
+        ///     Initializes a new instance of the <see cref="T:System.Data.Entity.Core.Metadata.Edm.ObjectItemCollection" /> class.
         /// </summary>
         public ObjectItemCollection()
+            : this(null)
+        {
+        }
+
+        internal ObjectItemCollection(IViewAssemblyCache viewAssemblyCache, KnownAssembliesSet knownAssembliesSet = null)
             : base(DataSpace.OSpace)
         {
+            _viewAssemblyCache = viewAssemblyCache ?? DbConfiguration.GetService<IViewAssemblyCache>();
+            _knownAssemblies = knownAssembliesSet ?? new KnownAssembliesSet();
+
             foreach (var type in ClrProviderManifest.Instance.GetStoreTypes())
             {
                 AddInternal(type);
@@ -50,19 +59,13 @@ namespace System.Data.Entity.Core.Metadata.Edm
         private object _loaderCookie;
         private readonly object _loadAssemblyLock = new object();
 
+        private readonly IViewAssemblyCache _viewAssemblyCache;
+
+        internal bool OSpaceTypesLoaded { get; set; }
+
         internal object LoadAssemblyLock
         {
             get { return _loadAssemblyLock; }
-        }
-
-        internal static IList<Assembly> ViewGenerationAssemblies
-        {
-            get { return AssemblyCache.ViewGenerationAssemblies; }
-        }
-
-        internal static bool IsCompiledViewGenAttributePresent(Assembly assembly)
-        {
-            return assembly.IsDefined(typeof(EntityViewGenerationAttribute), false /*inherit*/);
         }
 
         /// <summary>
@@ -75,44 +78,21 @@ namespace System.Data.Entity.Core.Metadata.Edm
         {
             if (!MetadataAssemblyHelper.ShouldFilterAssembly(assembly))
             {
-                var loadAllReferencedAssemblies = true;
-                LoadAssemblyFromCache(this, assembly, loadAllReferencedAssemblies, edmItemCollection, null);
+                LoadAssemblyFromCache(assembly, true, edmItemCollection, null);
             }
         }
 
-        internal void ImplicitLoadViewsFromAllReferencedAssemblies(Assembly assembly)
-        {
-            // we filter implicit loads
-            if (MetadataAssemblyHelper.ShouldFilterAssembly(assembly))
-            {
-                return;
-            }
-            lock (this)
-            {
-                CollectIfViewGenAssembly(assembly);
-
-                foreach (var referenceAssembly in MetadataAssemblyHelper.GetNonSystemReferencedAssemblies(assembly))
-                {
-                    CollectIfViewGenAssembly(referenceAssembly);
-                }
-            }
-        }
-
-        /// <summary>
-        ///     Load metadata from the given assembly
-        /// </summary>
-        /// <param name="assembly"> The assembly from which to load metadata </param>
-        /// <exception cref="System.ArgumentNullException">thrown if assembly argument is null</exception>
+        /// <summary>Loads metadata from the given assembly.</summary>
+        /// <param name="assembly">The assembly from which the metadata will be loaded.</param>
         public void LoadFromAssembly(Assembly assembly)
         {
             ExplicitLoadFromAssembly(assembly, null, null);
         }
 
-        /// <summary>
-        ///     Load metadata from the given assembly
-        /// </summary>
-        /// <param name="assembly"> The assembly from which to load metadata </param>
-        /// <exception cref="System.ArgumentNullException">thrown if assembly argument is null</exception>
+        /// <summary>Loads metadata from the given assembly.</summary>
+        /// <param name="assembly">The assembly from which the metadata will be loaded.</param>
+        /// <param name="edmItemCollection">The EDM metadata source for the O space metadata.</param>
+        /// <param name="logLoadMessage">The delegate to which log messages are sent.</param>
         public void LoadFromAssembly(Assembly assembly, EdmItemCollection edmItemCollection, Action<String> logLoadMessage)
         {
             Check.NotNull(assembly, "assembly");
@@ -122,6 +102,9 @@ namespace System.Data.Entity.Core.Metadata.Edm
             ExplicitLoadFromAssembly(assembly, edmItemCollection, logLoadMessage);
         }
 
+        /// <summary>Loads metadata from the specified assembly.</summary>
+        /// <param name="assembly">The assembly from which the metadata will be loaded.</param>
+        /// <param name="edmItemCollection">The EDM metadata source for the O space metadata.</param>
         public void LoadFromAssembly(Assembly assembly, EdmItemCollection edmItemCollection)
         {
             Check.NotNull(assembly, "assembly");
@@ -136,28 +119,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
         /// </summary>
         internal void ExplicitLoadFromAssembly(Assembly assembly, EdmItemCollection edmItemCollection, Action<String> logLoadMessage)
         {
-            LoadAssemblyFromCache(this, assembly, false /*loadAllReferencedAssemblies*/, edmItemCollection, logLoadMessage);
-            //Since User called LoadFromAssembly, so we should collect the generated views if present
-            //even if the schema attribute is not present
-            if (IsCompiledViewGenAttributePresent(assembly)
-                && !ObjectItemAttributeAssemblyLoader.IsSchemaAttributePresent(assembly))
-            {
-                CollectIfViewGenAssembly(assembly);
-            }
-        }
-
-        /// <summary>
-        ///     Implicit loading means that we are trying to help the user find the right
-        ///     assembly, but they didn't explicitly ask for it. Our Implicit rules require that
-        ///     we filter out assemblies with the Ecma or MicrosoftPublic PublicKeyToken on them
-        /// </summary>
-        internal void ImplicitLoadFromAssembly(Assembly assembly, EdmItemCollection edmItemCollection)
-        {
-            if (!MetadataAssemblyHelper.ShouldFilterAssembly(assembly))
-            {
-                // it meets the Implicit rules Load it
-                ExplicitLoadFromAssembly(assembly, edmItemCollection, null);
-            }
+            LoadAssemblyFromCache(assembly, false /*loadAllReferencedAssemblies*/, edmItemCollection, logLoadMessage);
         }
 
         /// <summary>
@@ -170,16 +132,12 @@ namespace System.Data.Entity.Core.Metadata.Edm
         /// <returns> true if the type and all its generic arguments are filtered out (did not attempt to load assembly) </returns>
         internal bool ImplicitLoadAssemblyForType(Type type, EdmItemCollection edmItemCollection)
         {
-            bool result;
+            var result = false;
 
             if (!MetadataAssemblyHelper.ShouldFilterAssembly(type.Assembly))
             {
                 // InternalLoadFromAssembly will check _knownAssemblies
-                result = LoadAssemblyFromCache(this, type.Assembly, false /*loadAllReferencedAssemblies*/, edmItemCollection, null);
-            }
-            else
-            {
-                result = false;
+                result = LoadAssemblyFromCache(type.Assembly, false /*loadAllReferencedAssemblies*/, edmItemCollection, null);
             }
 
             if (type.IsGenericType)
@@ -210,84 +168,21 @@ namespace System.Data.Entity.Core.Metadata.Edm
             return null;
         }
 
-        /// <summary>
-        ///     Loads the OSpace types in the assembly and returns them as a dictionary
-        /// </summary>
-        /// <param name="assembly"> The assembly to load </param>
-        /// <returns> A mapping from names to OSpace EdmTypes </returns>
-        internal static Dictionary<string, EdmType> LoadTypesExpensiveWay(Assembly assembly)
+        private bool LoadAssemblyFromCache(
+            Assembly assembly, bool loadReferencedAssemblies, EdmItemCollection edmItemCollection, Action<String> logLoadMessage)
         {
-            Dictionary<string, EdmType> typesInLoading = null;
+            _viewAssemblyCache.CheckAssembly(assembly, loadReferencedAssemblies);
 
-            List<EdmItemError> errors;
-            var knownAssemblies = new KnownAssembliesSet();
-
-            AssemblyCache.LoadAssembly(
-                assembly, false /*loadAllReferencedAssemblies*/,
-                knownAssemblies, out typesInLoading, out errors);
-
-            // Check for errors
-            if (errors.Count != 0)
+            // Code First already did type loading
+            if (OSpaceTypesLoaded)
             {
-                throw EntityUtil.InvalidSchemaEncountered(Helper.CombineErrorMessage(errors));
+                return true;
             }
 
-            return typesInLoading;
-        }
-
-        /// <summary>
-        ///     internal static method to get the relationship name
-        /// </summary>
-        /// <param name="clrType"> </param>
-        /// <param name="relationshipName"> </param>
-        /// <returns> </returns>
-        internal static AssociationType GetRelationshipTypeExpensiveWay(Type entityClrType, string relationshipName)
-        {
-            var typesInLoading = LoadTypesExpensiveWay(entityClrType.Assembly);
-            if (typesInLoading != null)
-            {
-                EdmType edmType;
-                // Look in typesInLoading for relationship type
-                if (typesInLoading.TryGetValue(relationshipName, out edmType)
-                    && Helper.IsRelationshipType(edmType))
-                {
-                    return (AssociationType)edmType;
-                }
-            }
-            return null;
-        }
-
-        /// <summary>
-        ///     internal static method to get all the AssociationTypes from an assembly
-        /// </summary>
-        /// <param name="assembly"> The assembly from which to load relationship types </param>
-        /// <returns> An enumeration of OSpace AssociationTypes that are present in this assembly </returns>
-        internal static IEnumerable<AssociationType> GetAllRelationshipTypesExpensiveWay(Assembly assembly)
-        {
-            var typesInLoading = LoadTypesExpensiveWay(assembly);
-            if (typesInLoading != null)
-            {
-                // Iterate through the EdmTypes looking for AssociationTypes
-                foreach (var edmType in typesInLoading.Values)
-                {
-                    if (Helper.IsAssociationType(edmType))
-                    {
-                        yield return (AssociationType)edmType;
-                    }
-                }
-            }
-            yield break;
-        }
-
-        private static bool LoadAssemblyFromCache(
-            ObjectItemCollection objectItemCollection, Assembly assembly,
-            bool loadReferencedAssemblies, EdmItemCollection edmItemCollection, Action<String> logLoadMessage)
-        {
             // Check if its loaded in the cache - if the call is for loading referenced assemblies, make sure that all referenced
             // assemblies are also loaded
             KnownAssemblyEntry entry;
-            if (objectItemCollection._knownAssemblies.TryGetKnownAssembly(
-                assembly, objectItemCollection._loaderCookie, edmItemCollection, out entry))
+            if (_knownAssemblies.TryGetKnownAssembly(assembly, _loaderCookie, edmItemCollection, out entry))
             {
                 // Proceed if only we need to load the referenced assemblies and they are not loaded
                 if (loadReferencedAssemblies == false)
@@ -302,12 +197,11 @@ namespace System.Data.Entity.Core.Metadata.Edm
                 }
             }
 
-            lock (objectItemCollection.LoadAssemblyLock)
+            lock (LoadAssemblyLock)
             {
                 // Check after acquiring the lock, since the known assemblies might have got modified
                 // Check if the assembly is already loaded. The reason we need to check if the assembly is already loaded, is that 
-                if (objectItemCollection._knownAssemblies.TryGetKnownAssembly(
-                    assembly, objectItemCollection._loaderCookie, edmItemCollection, out entry))
+                if (_knownAssemblies.TryGetKnownAssembly(assembly, _loaderCookie, edmItemCollection, out entry))
                 {
                     // Proceed if only we need to load the referenced assemblies and they are not loaded
                     if (loadReferencedAssemblies == false
@@ -319,21 +213,12 @@ namespace System.Data.Entity.Core.Metadata.Edm
 
                 Dictionary<string, EdmType> typesInLoading;
                 List<EdmItemError> errors;
-                KnownAssembliesSet knownAssemblies;
-
-                if (objectItemCollection != null)
-                {
-                    knownAssemblies = new KnownAssembliesSet(objectItemCollection._knownAssemblies);
-                }
-                else
-                {
-                    knownAssemblies = new KnownAssembliesSet();
-                }
+                var knownAssemblies = new KnownAssembliesSet(_knownAssemblies);
 
                 // Load the assembly from the cache
                 AssemblyCache.LoadAssembly(
                     assembly, loadReferencedAssemblies, knownAssemblies, edmItemCollection, logLoadMessage,
-                    ref objectItemCollection._loaderCookie, out typesInLoading, out errors);
+                    ref _loaderCookie, out typesInLoading, out errors);
 
                 // Throw if we have encountered errors
                 if (errors.Count != 0)
@@ -350,77 +235,60 @@ namespace System.Data.Entity.Core.Metadata.Edm
                     // because the caller should have done it already
                     // Recheck the assemblies added, another list is created just to match up the collection type
                     // taken in by AtomicAddRange()
-                    var globalItems = new List<GlobalItem>();
-                    foreach (var edmType in typesInLoading.Values)
-                    {
-                        globalItems.Add(edmType);
-
-                        var cspaceTypeName = "";
-                        try
-                        {
-                            // Also populate the ocmapping information
-                            if (Helper.IsEntityType(edmType))
-                            {
-                                cspaceTypeName = ((ClrEntityType)edmType).CSpaceTypeName;
-                                objectItemCollection._ocMapping.Add(cspaceTypeName, edmType);
-                            }
-                            else if (Helper.IsComplexType(edmType))
-                            {
-                                cspaceTypeName = ((ClrComplexType)edmType).CSpaceTypeName;
-                                objectItemCollection._ocMapping.Add(cspaceTypeName, edmType);
-                            }
-                            else if (Helper.IsEnumType(edmType))
-                            {
-                                cspaceTypeName = ((ClrEnumType)edmType).CSpaceTypeName;
-                                objectItemCollection._ocMapping.Add(cspaceTypeName, edmType);
-                            }
-                            // for the rest of the types like a relationship type, we do not have oc mapping, 
-                            // so we don't keep that information
-                        }
-                        catch (ArgumentException e)
-                        {
-                            throw new MappingException(Strings.Mapping_CannotMapCLRTypeMultipleTimes(cspaceTypeName), e);
-                        }
-                    }
-
-                    // Create a new ObjectItemCollection and add all the global items to it. 
-                    // Also copy all the existing items from the existing collection
-                    objectItemCollection.AtomicAddRange(globalItems);
+                    AddLoadedTypes(typesInLoading);
                 }
 
                 // Update the value of known assemblies
-                objectItemCollection._knownAssemblies = knownAssemblies;
-
-                foreach (var loadedAssembly in knownAssemblies.Assemblies)
-                {
-                    CollectIfViewGenAssembly(loadedAssembly);
-                }
+                _knownAssemblies = knownAssemblies;
 
                 return typesInLoading.Count != 0;
             }
         }
 
-        /// <summary>
-        ///     Check to see if the assembly has the custom view generation attribute AND
-        ///     collect the assembly into the local list if it has cutom attribute.
-        /// </summary>
-        /// <param name="assembly"> </param>
-        /// <param name="viewGenAssemblies"> </param>
-        private static void CollectIfViewGenAssembly(Assembly assembly)
+        internal virtual void AddLoadedTypes(Dictionary<string, EdmType> typesInLoading)
         {
-            if (assembly.IsDefined(typeof(EntityViewGenerationAttribute), false /*inherit*/))
+            DebugCheck.NotNull(typesInLoading);
+
+            var globalItems = new List<GlobalItem>();
+            foreach (var edmType in typesInLoading.Values)
             {
-                if (!AssemblyCache.ViewGenerationAssemblies.Contains(assembly))
+                globalItems.Add(edmType);
+
+                var cspaceTypeName = "";
+                try
                 {
-                    AssemblyCache.ViewGenerationAssemblies.Add(assembly);
+                    // Also populate the ocmapping information
+                    if (Helper.IsEntityType(edmType))
+                    {
+                        cspaceTypeName = ((ClrEntityType)edmType).CSpaceTypeName;
+                        _ocMapping.Add(cspaceTypeName, edmType);
+                    }
+                    else if (Helper.IsComplexType(edmType))
+                    {
+                        cspaceTypeName = ((ClrComplexType)edmType).CSpaceTypeName;
+                        _ocMapping.Add(cspaceTypeName, edmType);
+                    }
+                    else if (Helper.IsEnumType(edmType))
+                    {
+                        cspaceTypeName = ((ClrEnumType)edmType).CSpaceTypeName;
+                        _ocMapping.Add(cspaceTypeName, edmType);
+                    }
+                    // for the rest of the types like a relationship type, we do not have oc mapping, 
+                    // so we don't keep that information
+                }
+                catch (ArgumentException e)
+                {
+                    throw new MappingException(Strings.Mapping_CannotMapCLRTypeMultipleTimes(cspaceTypeName), e);
                 }
             }
+
+            // Create a new ObjectItemCollection and add all the global items to it. 
+            // Also copy all the existing items from the existing collection
+            AtomicAddRange(globalItems);
         }
 
-        /// <summary>
-        ///     Get the list of primitive types for the given space
-        /// </summary>
-        /// <returns> </returns>
+        /// <summary>Returns a collection of primitive type objects.</summary>
+        /// <returns>A collection of primitive type objects.</returns>
         [SuppressMessage("Microsoft.Design", "CA1024:UsePropertiesWhereAppropriate")]
         public IEnumerable<PrimitiveType> GetPrimitiveTypes()
         {
@@ -428,11 +296,12 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     The method returns the underlying CLR type for the specified OSpace type argument.
-        ///     If the DataSpace of the parameter is not OSpace, an ArgumentException is thrown.
+        ///     Returns the CLR type that corresponds to the <see cref="T:System.Data.Entity.Core.Metadata.Edm.StructuralType" /> supplied by the objectSpaceType parameter.
         /// </summary>
-        /// <param name="objectSpaceType"> The OSpace type to look up </param>
-        /// <returns> The CLR type of the OSpace argument </returns>
+        /// <returns>The CLR type of the OSpace argument.</returns>
+        /// <param name="objectSpaceType">
+        ///     A <see cref="T:System.Data.Entity.Core.Metadata.Edm.StructuralType" /> that represents the object space type.
+        /// </param>
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
         public Type GetClrType(StructuralType objectSpaceType)
         {
@@ -440,39 +309,32 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     The method returns the underlying CLR type for the specified OSpace type argument.
-        ///     If the DataSpace of the parameter is not OSpace, the method returns false and sets
-        ///     the out parameter to null.
+        ///     Returns a CLR type corresponding to the <see cref="T:System.Data.Entity.Core.Metadata.Edm.StructuralType" /> supplied by the objectSpaceType parameter.
         /// </summary>
-        /// <param name="objectSpaceType"> The OSpace type to look up </param>
-        /// <param name="clrType"> The CLR type of the OSpace argument </param>
-        /// <returns> true on success, false on failure </returns>
+        /// <returns>true if there is a type that matches the search criteria; otherwise, false.</returns>
+        /// <param name="objectSpaceType">
+        ///     A <see cref="T:System.Data.Entity.Core.Metadata.Edm.StructuralType" /> that represents the object space type.
+        /// </param>
+        /// <param name="clrType">The CLR type.</param>
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
         public bool TryGetClrType(StructuralType objectSpaceType, out Type clrType)
         {
             return TryGetClrType((EdmType)objectSpaceType, out clrType);
         }
 
-        /// <summary>
-        ///     The method returns the underlying CLR type for the specified OSpace type argument.
-        ///     If the DataSpace of the parameter is not OSpace, an ArgumentException is thrown.
-        /// </summary>
-        /// <param name="objectSpaceType"> The OSpace type to look up </param>
-        /// <returns> The CLR type of the OSpace argument </returns>
+        /// <summary> The method returns the underlying CLR type for the specified OSpace type argument. If the DataSpace of the parameter is not OSpace, an ArgumentException is thrown. </summary>
+        /// <returns>The CLR type of the OSpace argument.</returns>
+        /// <param name="objectSpaceType">The OSpace type to look up.</param>
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
         public Type GetClrType(EnumType objectSpaceType)
         {
             return GetClrType((EdmType)objectSpaceType);
         }
 
-        /// <summary>
-        ///     The method returns the underlying CLR type for the specified OSpace enum type argument.
-        ///     If the DataSpace of the parameter is not OSpace, the method returns false and sets
-        ///     the out parameter to null.
-        /// </summary>
-        /// <param name="objectSpaceType"> The OSpace enum type to look up </param>
-        /// <param name="clrType"> The CLR enum type of the OSpace argument </param>
-        /// <returns> true on success, false on failure </returns>
+        /// <summary>Returns the underlying CLR type for the specified OSpace enum type argument. If the DataSpace of the parameter is not OSpace, the method returns false and sets the out parameter to null. </summary>
+        /// <returns>true on success, false on failure</returns>
+        /// <param name="objectSpaceType">The OSpace enum type to look up</param>
+        /// <param name="clrType">The CLR enum type of the OSpace argument</param>
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
         public bool TryGetClrType(EnumType objectSpaceType, out Type clrType)
         {
@@ -609,6 +471,11 @@ namespace System.Data.Entity.Core.Metadata.Edm
             return edmType.Identity;
         }
 
+        /// <summary>Returns all the items of the specified type from this item collection.</summary>
+        /// <returns>
+        ///     A collection of type <see cref="T:System.Collections.ObjectModel.ReadOnlyCollection`1" /> that contains all items of the specified type.
+        /// </returns>
+        /// <typeparam name="T">The type returned by the method.</typeparam>
         public override ReadOnlyCollection<T> GetItems<T>()
         {
             return base.InternalGetItems(typeof(T)) as ReadOnlyCollection<T>;

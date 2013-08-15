@@ -4,7 +4,6 @@ namespace System.Data.Entity.Internal.Linq
 {
     using System.Collections;
     using System.Collections.Generic;
-    using System.Collections.ObjectModel;
     using System.Data.Entity.Core;
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Core.Objects;
@@ -74,6 +73,8 @@ namespace System.Data.Entity.Internal.Linq
         /// <exception cref="InvalidOperationException">Thrown if the context has been disposed.</exception>
         public TEntity Find(params object[] keyValues)
         {
+            InternalContext.ObjectContext.AsyncMonitor.EnsureNotEntered();
+
             // This DetectChanges is useful in the case where objects are added to the graph and then the user
             // attempts to find one of those added objects.
             InternalContext.DetectChanges();
@@ -118,7 +119,14 @@ namespace System.Data.Entity.Internal.Linq
         /// <exception cref="InvalidOperationException">Thrown if the type of entity is not part of the data model for this context.</exception>
         /// <exception cref="InvalidOperationException">Thrown if the types of the key values do not match the types of the key values for the entity type to be found.</exception>
         /// <exception cref="InvalidOperationException">Thrown if the context has been disposed.</exception>
-        public async Task<TEntity> FindAsync(CancellationToken cancellationToken, params object[] keyValues)
+        public Task<TEntity> FindAsync(CancellationToken cancellationToken, params object[] keyValues)
+        {
+            InternalContext.ObjectContext.AsyncMonitor.EnsureNotEntered();
+
+            return FindInternalAsync(cancellationToken, keyValues);
+        }
+
+        private async Task<TEntity> FindInternalAsync(CancellationToken cancellationToken, params object[] keyValues)
         {
             // This DetectChanges is useful in the case where objects are added to the graph and then the user
             // attempts to find one of those added objects.
@@ -293,7 +301,7 @@ namespace System.Data.Entity.Internal.Linq
         /// <summary>
         ///     Gets the ObservableCollection representing the local view for the set based on this query.
         /// </summary>
-        public ObservableCollection<TEntity> Local
+        public DbLocalView<TEntity> Local
         {
             get
             {
@@ -347,6 +355,16 @@ namespace System.Data.Entity.Internal.Linq
                 () => InternalContext.ObjectContext.AddObject(EntitySetName, entity), EntityState.Added, entity, "Add");
         }
 
+        public virtual void AddRange(IEnumerable entities)
+        {
+            DebugCheck.NotNull(entities);
+
+            InternalContext.DetectChanges();
+
+            ActOnSet(
+                entity => InternalContext.ObjectContext.AddObject(EntitySetName, entity), EntityState.Added, entities, "AddRange");
+        }
+
         /// <summary>
         ///     Marks the given entity as Deleted such that it will be deleted from the database when SaveChanges
         ///     is called.  Note that the entity must exist in the context in some other state before this method
@@ -373,6 +391,21 @@ namespace System.Data.Entity.Internal.Linq
             InternalContext.ObjectContext.DeleteObject(entity);
         }
 
+        public virtual void RemoveRange(IEnumerable entities)
+        {
+            DebugCheck.NotNull(entities);
+
+            // prevent "enumerator was changed" exception
+            // if entities is syncronized with other elements
+            // (e.g: local view from DbSet.Local.)
+            var copyOfEntities = entities.Cast<object>().ToList();
+
+            InternalContext.DetectChanges();
+
+            ActOnSet(
+                entity => InternalContext.ObjectContext.DeleteObject(entity), EntityState.Deleted, copyOfEntities, "RemoveRange");
+        }
+
         /// <summary>
         ///     This method checks whether an entity is already in the context.  If it is, then the state
         ///     is changed to the new state given.  If it isn't, then the action delegate is executed to
@@ -396,12 +429,38 @@ namespace System.Data.Entity.Internal.Linq
             ObjectStateEntry stateEntry;
             if (InternalContext.ObjectContext.ObjectStateManager.TryGetObjectStateEntry(entity, out stateEntry))
             {
-                // Will be no-op if state is already added.
+                // Will be no-op if state is already newState.
                 stateEntry.ChangeState(newState);
             }
             else
             {
                 action();
+            }
+        }
+
+        private void ActOnSet(Action<object> action, EntityState newState, IEnumerable entities, string methodName)
+        {
+            DebugCheck.NotNull(entities);
+
+            foreach (var entity in entities)
+            {
+                Check.NotNull(entity, "entity");
+
+                if (!(entity is TEntity))
+                {
+                    throw Error.DbSet_BadTypeForAddAttachRemove(methodName, entity.GetType().Name, typeof(TEntity).Name);
+                }
+
+                ObjectStateEntry stateEntry;
+                if (InternalContext.ObjectContext.ObjectStateManager.TryGetObjectStateEntry(entity, out stateEntry))
+                {
+                    // Will be no-op if state is already added.
+                    stateEntry.ChangeState(newState);
+                }
+                else
+                {
+                    action(entity);
+                }
             }
         }
 
@@ -682,7 +741,9 @@ namespace System.Data.Entity.Internal.Linq
         ///     materializing entities into the entity set that backs this set.
         /// </summary>
         /// <param name="sql"> The SQL query. </param>
-        /// <param name="asNoTracking"> If <c>true</c> then the entities are not tracked, otherwise they are. </param>
+        /// <param name="asNoTracking">
+        ///     If <c>true</c> then the entities are not tracked, otherwise they are.
+        /// </param>
         /// <param name="streaming"> Whether the query is streaming or buffering. </param>
         /// <param name="parameters"> The parameters. </param>
         /// <returns> The query results. </returns>
@@ -690,6 +751,8 @@ namespace System.Data.Entity.Internal.Linq
         {
             DebugCheck.NotNull(sql);
             DebugCheck.NotNull(parameters);
+
+            InternalContext.ObjectContext.AsyncMonitor.EnsureNotEntered();
 
             Initialize();
             var mergeOption = asNoTracking ? MergeOption.NoTracking : MergeOption.AppendOnly;
@@ -722,7 +785,9 @@ namespace System.Data.Entity.Internal.Linq
         ///     materializing entities into the entity set that backs this set.
         /// </summary>
         /// <param name="sql"> The SQL query. </param>
-        /// <param name="asNoTracking"> If <c>true</c> then the entities are not tracked, otherwise they are. </param>
+        /// <param name="asNoTracking">
+        ///     If <c>true</c> then the entities are not tracked, otherwise they are.
+        /// </param>
         /// <param name="streaming"> Whether the query is streaming or buffering. </param>
         /// <param name="parameters"> The parameters. </param>
         /// <returns> The query results. </returns>
@@ -731,29 +796,31 @@ namespace System.Data.Entity.Internal.Linq
             DebugCheck.NotNull(sql);
             DebugCheck.NotNull(parameters);
 
+            InternalContext.ObjectContext.AsyncMonitor.EnsureNotEntered();
+
             Initialize();
             var mergeOption = asNoTracking ? MergeOption.NoTracking : MergeOption.AppendOnly;
 
             return new LazyAsyncEnumerator<TEntity>(
                 async cancellationToken =>
-                          {
-                              var disposableEnumerable = await InternalContext.ObjectContext.ExecuteStoreQueryAsync<TEntity>(
-                                  sql, EntitySetName, new ExecutionOptions(mergeOption, streaming), cancellationToken, parameters).ConfigureAwait(
-                                      continueOnCapturedContext: false);
+                    {
+                        var disposableEnumerable = await InternalContext.ObjectContext.ExecuteStoreQueryAsync<TEntity>(
+                            sql, EntitySetName, new ExecutionOptions(mergeOption, streaming), cancellationToken, parameters)
+                                                                        .ConfigureAwait(continueOnCapturedContext: false);
 
-                              try
-                              {
-                                  return ((IDbAsyncEnumerable<TEntity>)disposableEnumerable).GetAsyncEnumerator();
-                              }
-                              catch
-                              {
-                                  // if there is a problem creating the enumerator, we should dispose
-                                  // the enumerable (if there is no problem, the enumerator will take 
-                                  // care of the dispose)
-                                  disposableEnumerable.Dispose();
-                                  throw;
-                              }
-                          });
+                        try
+                        {
+                            return ((IDbAsyncEnumerable<TEntity>)disposableEnumerable).GetAsyncEnumerator();
+                        }
+                        catch
+                        {
+                            // if there is a problem creating the enumerator, we should dispose
+                            // the enumerable (if there is no problem, the enumerator will take 
+                            // care of the dispose)
+                            disposableEnumerable.Dispose();
+                            throw;
+                        }
+                    });
         }
 
 #endif

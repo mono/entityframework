@@ -4,8 +4,11 @@ namespace System.Data.Entity.Edm.Serialization
 {
     using System.Collections.Generic;
     using System.Data.Entity.Core.Metadata.Edm;
+    using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
+    using System.Diagnostics;
     using System.Linq;
+    using System.Text;
     using System.Xml;
 
     internal sealed class EdmSerializationVisitor : EdmModelVisitor
@@ -24,15 +27,16 @@ namespace System.Data.Entity.Edm.Serialization
             _schemaWriter = schemaWriter;
         }
 
-        public void Visit(EdmModel edmModel)
+        public void Visit(EdmModel edmModel, string modelNamespace)
         {
             DebugCheck.NotNull(edmModel);
 
             var namespaceName
-                = edmModel
-                    .NamespaceNames
-                    .DefaultIfEmpty("Empty")
-                    .Single();
+                = modelNamespace ??
+                  edmModel
+                      .NamespaceNames
+                      .DefaultIfEmpty("Empty")
+                      .Single();
 
             _schemaWriter.WriteSchemaElementHeader(namespaceName);
 
@@ -85,6 +89,27 @@ namespace System.Data.Entity.Edm.Serialization
             _schemaWriter.WriteEndElement();
         }
 
+        protected internal override void VisitFunctionReturnParameter(FunctionParameter returnParameter)
+        {
+            if (returnParameter.TypeUsage.EdmType.BuiltInTypeKind != BuiltInTypeKind.PrimitiveType)
+            {
+                _schemaWriter.WriteFunctionReturnTypeElementHeader();
+                base.VisitFunctionReturnParameter(returnParameter);
+                _schemaWriter.WriteEndElement();
+            }
+            else
+            {
+                base.VisitFunctionReturnParameter(returnParameter);
+            }
+        }
+
+        protected internal override void VisitCollectionType(CollectionType collectionType)
+        {
+            _schemaWriter.WriteCollectionTypeElementHeader();
+            base.VisitCollectionType(collectionType);
+            _schemaWriter.WriteEndElement();
+        }
+
         protected override void VisitEdmAssociationSet(AssociationSet item)
         {
             _schemaWriter.WriteAssociationSetElementHeader(item);
@@ -108,11 +133,51 @@ namespace System.Data.Entity.Edm.Serialization
             _schemaWriter.WriteEndElement();
         }
 
-        protected override void VisitEdmEntityType(EntityType item)
+        protected internal override void VisitFunctionImport(EdmFunction functionImport)
         {
-            _schemaWriter.WriteEntityTypeElementHeader(item);
-            base.VisitEdmEntityType(item);
+            _schemaWriter.WriteFunctionImportElementHeader(functionImport);
+            base.VisitFunctionImport(functionImport);
             _schemaWriter.WriteEndElement();
+        }
+
+        protected internal override void VisitFunctionImportParameter(FunctionParameter parameter)
+        {
+            _schemaWriter.WriteFunctionImportParameterElementHeader(parameter);
+            base.VisitFunctionImportParameter(parameter);
+            _schemaWriter.WriteEndElement();
+        }
+
+        protected internal override void VisitFunctionImportReturnParameter(FunctionParameter parameter)
+        {
+            // function imports with multiple return types are currently not supported
+            // for function with single return value the return type is being written inline
+        }
+
+        protected internal override void VisitRowType(RowType rowType)
+        {
+            _schemaWriter.WriteRowTypeElementHeader();
+            base.VisitRowType(rowType);
+            _schemaWriter.WriteEndElement();
+        }
+
+        protected internal override void VisitEdmEntityType(EntityType item)
+        {
+            var builder = new StringBuilder();
+
+            AppendSchemaErrors(builder, item);
+
+            if (MetadataItemHelper.IsInvalid(item))
+            {
+                AppendMetadataItem(builder, item, (v, i) => v.InternalVisitEdmEntityType(i));
+
+                WriteComment(builder.ToString());
+            }
+            else
+            {
+                WriteComment(builder.ToString());
+
+                InternalVisitEdmEntityType(item);
+            }
         }
 
         protected override void VisitEdmEnumType(EnumType item)
@@ -129,7 +194,7 @@ namespace System.Data.Entity.Edm.Serialization
             _schemaWriter.WriteEndElement();
         }
 
-        protected override void VisitDeclaredKeyProperties(EntityType entityType, IList<EdmProperty> properties)
+        protected override void VisitKeyProperties(EntityType entityType, IList<EdmProperty> properties)
         {
             if (properties.Any())
             {
@@ -144,7 +209,7 @@ namespace System.Data.Entity.Edm.Serialization
             }
         }
 
-        protected override void VisitEdmProperty(EdmProperty item)
+        protected internal override void VisitEdmProperty(EdmProperty item)
         {
             _schemaWriter.WritePropertyElementHeader(item);
             base.VisitEdmProperty(item);
@@ -165,11 +230,24 @@ namespace System.Data.Entity.Edm.Serialization
             _schemaWriter.WriteEndElement();
         }
 
-        protected override void VisitEdmAssociationType(AssociationType item)
+        protected internal override void VisitEdmAssociationType(AssociationType item)
         {
-            _schemaWriter.WriteAssociationTypeElementHeader(item);
-            base.VisitEdmAssociationType(item);
-            _schemaWriter.WriteEndElement();
+            var builder = new StringBuilder();
+
+            AppendSchemaErrors(builder, item);
+
+            if (MetadataItemHelper.IsInvalid(item))
+            {
+                AppendMetadataItem(builder, item, (v, i) => v.InternalVisitEdmAssociationType(i));
+
+                WriteComment(builder.ToString());
+            }
+            else
+            {
+                WriteComment(builder.ToString());
+
+                InternalVisitEdmAssociationType(item);
+            }
         }
 
         protected override void VisitEdmAssociationEnd(RelationshipEndMember item)
@@ -192,6 +270,59 @@ namespace System.Data.Entity.Edm.Serialization
                 XmlConstants.DependentRole, item.ToRole, item.ToProperties);
             VisitMetadataItem(item);
             _schemaWriter.WriteEndElement();
+        }
+
+        private void InternalVisitEdmEntityType(EntityType item)
+        {
+            _schemaWriter.WriteEntityTypeElementHeader(item);
+            base.VisitEdmEntityType(item);
+            _schemaWriter.WriteEndElement();
+        }
+
+        private void InternalVisitEdmAssociationType(AssociationType item)
+        {
+            _schemaWriter.WriteAssociationTypeElementHeader(item);
+            base.VisitEdmAssociationType(item);
+            _schemaWriter.WriteEndElement();
+        }
+
+        private static void AppendSchemaErrors(StringBuilder builder, MetadataItem item)
+        {
+            if (MetadataItemHelper.HasSchemaErrors(item))
+            {
+                builder.Append(Strings.MetadataItemErrorsFoundDuringGeneration);
+
+                foreach (var error in MetadataItemHelper.GetSchemaErrors(item))
+                {
+                    builder.AppendLine();
+                    builder.Append(error.ToString());
+                }
+            }
+        }
+
+        private void AppendMetadataItem<T>(
+            StringBuilder builder, T item, Action<EdmSerializationVisitor, T> visitAction) 
+            where T : MetadataItem
+        {
+            var settings = new XmlWriterSettings 
+                { 
+                    ConformanceLevel = ConformanceLevel.Fragment,
+                    Indent = true
+                };
+            settings.NewLineChars += "        ";
+
+            builder.Append(settings.NewLineChars);
+
+            using (var writer = XmlWriter.Create(builder, settings))
+            {
+                var visitor = new EdmSerializationVisitor(_schemaWriter.Replicate(writer));
+                visitAction(visitor, item);
+            }
+        }
+
+        private void WriteComment(string comment)
+        {
+            _schemaWriter.WriteComment(comment.Replace("--", "- -"));
         }
     }
 }

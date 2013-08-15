@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
-namespace System.Data.Entity.ModelConfiguration.Configuration.UnitTests
+namespace System.Data.Entity.ModelConfiguration.Configuration
 {
     using System.Collections.Generic;
     using System.Data.Entity.Core.Metadata.Edm;
@@ -18,6 +18,111 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.UnitTests
     public sealed class ModelConfigurationTests
     {
         [Fact]
+        public void Configure_should_uniquify_unconfigured_function_names()
+        {
+            var modelConfiguration = new ModelConfiguration();
+
+            var typeA = new MockType("A");
+            var typeB = new MockType("B");
+
+            modelConfiguration.Entity(typeA).MapToStoredProcedures();
+
+            var modificationFunctionsConfiguration
+                = new ModificationFunctionsConfiguration();
+
+            var modificationFunctionConfiguration = new ModificationFunctionConfiguration();
+            modificationFunctionConfiguration.HasName("A_Insert");
+
+            modificationFunctionsConfiguration.Insert(modificationFunctionConfiguration);
+
+            modelConfiguration.Entity(typeB).MapToStoredProcedures(modificationFunctionsConfiguration);
+
+            var model = new EdmModel(DataSpace.CSpace);
+
+            var entityA = model.AddEntityType("A");
+            entityA.Annotations.SetClrType(typeA);
+            entityA.SetConfiguration(modelConfiguration.Entity(typeA));
+
+            var entityB = model.AddEntityType("B");
+            entityB.Annotations.SetClrType(typeB);
+            entityB.SetConfiguration(modelConfiguration.Entity(typeB));
+
+            model.AddEntitySet("AS", entityA);
+            model.AddEntitySet("BS", entityB);
+
+            var databaseMapping
+                = new DatabaseMappingGenerator(ProviderRegistry.Sql2008_ProviderManifest)
+                    .Generate(model);
+
+            modelConfiguration.Configure(databaseMapping, ProviderRegistry.Sql2008_ProviderManifest);
+
+            Assert.True(databaseMapping.Database.Functions.Any(f => f.Name == "A_Insert"));
+            Assert.True(databaseMapping.Database.Functions.Any(f => f.Name == "A_Insert1"));
+        }
+
+        [Fact]
+        public void Configure_should_uniquify_unconfigured_assocation_function_names()
+        {
+            var typeA = new MockType("A");
+            var typeB = new MockType("B").Property(typeA.AsCollection(), "As");
+            var mockPropertyInfo = typeB.GetProperty("As");
+            typeA.Property(typeB.AsCollection(), "Bs");
+
+            var modelConfiguration = new ModelConfiguration();
+
+            var navigationPropertyConfiguration
+                = modelConfiguration.Entity(typeB).Navigation(mockPropertyInfo);
+
+            navigationPropertyConfiguration.ModificationFunctionsConfiguration
+                = new ModificationFunctionsConfiguration();
+
+            var modificationFunctionConfiguration = new ModificationFunctionConfiguration();
+            modificationFunctionConfiguration.HasName("M2M_Delete");
+
+            navigationPropertyConfiguration.ModificationFunctionsConfiguration
+                .Insert(modificationFunctionConfiguration);
+
+            var model = new EdmModel(DataSpace.CSpace);
+
+            var entityA = model.AddEntityType("A");
+            entityA.Annotations.SetClrType(typeA);
+            entityA.SetConfiguration(modelConfiguration.Entity(typeA));
+
+            var entityB = model.AddEntityType("B");
+            entityB.Annotations.SetClrType(typeB);
+            entityB.SetConfiguration(modelConfiguration.Entity(typeB));
+
+            model.AddEntitySet("AS", entityA);
+            model.AddEntitySet("BS", entityB);
+
+            var associationType
+                = model.AddAssociationType(
+                    "M2M",
+                    entityA,
+                    RelationshipMultiplicity.Many,
+                    entityB,
+                    RelationshipMultiplicity.Many);
+
+            associationType.SetConfiguration(navigationPropertyConfiguration);
+
+            var navigationProperty
+                = entityB.AddNavigationProperty("As", associationType);
+
+            navigationProperty.SetClrPropertyInfo(mockPropertyInfo);
+
+            model.AddAssociationSet("M2MSet", associationType);
+
+            var databaseMapping
+                = new DatabaseMappingGenerator(ProviderRegistry.Sql2008_ProviderManifest)
+                    .Generate(model);
+
+            modelConfiguration.Configure(databaseMapping, ProviderRegistry.Sql2008_ProviderManifest);
+
+            Assert.True(databaseMapping.Database.Functions.Any(f => f.Name == "M2M_Delete"));
+            Assert.True(databaseMapping.Database.Functions.Any(f => f.Name == "M2M_Delete1"));
+        }
+
+        [Fact]
         public void Configure_when_base_entity_mapped_to_function_should_map_sub_types_to_functions()
         {
             var modelConfiguration = new ModelConfiguration();
@@ -26,7 +131,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.UnitTests
             var middleType = new MockType().BaseType(rootType);
             var leafType = new MockType().BaseType(middleType);
 
-            modelConfiguration.Entity(rootType).MapToFunctions();
+            modelConfiguration.Entity(rootType).MapToStoredProcedures();
             modelConfiguration.Entity(middleType);
             modelConfiguration.Entity(leafType);
 
@@ -59,7 +164,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.UnitTests
             var derivedType = new MockType("D").BaseType(baseType);
 
             modelConfiguration.Entity(baseType);
-            modelConfiguration.Entity(derivedType).MapToFunctions();
+            modelConfiguration.Entity(derivedType).MapToStoredProcedures();
 
             var model = new EdmModel(DataSpace.CSpace);
 
@@ -85,14 +190,14 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.UnitTests
             var derivedType = new MockType("D").BaseType(baseType);
 
             modelConfiguration.Entity(baseType);
-            modelConfiguration.Entity(derivedType).MapToFunctions();
+            modelConfiguration.Entity(derivedType).MapToStoredProcedures();
 
             var model = new EdmModel(DataSpace.CSpace);
 
             var baseEntity = model.AddEntityType("Base");
             baseEntity.Annotations.SetClrType(baseType);
             baseEntity.Abstract = true;
-            
+
             var derivedEntity = model.AddEntityType("Derived");
             derivedEntity.Annotations.SetClrType(derivedType);
             derivedEntity.BaseType = baseEntity;
@@ -143,7 +248,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.UnitTests
             var modelConfiguration = new ModelConfiguration();
 
             var databaseMetadata = new EdmModel(DataSpace.CSpace);
-            databaseMetadata.AddEntitySet("ES", new EntityType());
+            databaseMetadata.AddEntitySet("ES", new EntityType("E", "N", DataSpace.CSpace));
 
             var databaseMapping
                 = new DbDatabaseMapping().Initialize(
@@ -165,7 +270,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.UnitTests
                       };
 
             var databaseMetadata = new EdmModel(DataSpace.CSpace);
-            databaseMetadata.AddEntitySet("ES", new EntityType());
+            databaseMetadata.AddEntitySet("ES", new EntityType("E", "N", DataSpace.CSpace));
 
             var databaseMapping
                 = new DbDatabaseMapping().Initialize(

@@ -36,6 +36,11 @@ namespace System.Data.Entity.Core.Metadata.Edm
             _typeUsage = memberTypeUsage;
         }
 
+        string INamedDataModelItem.Identity
+        {
+            get { return Identity; }
+        }
+
         /// <summary>
         ///     Returns the identity of the member
         /// </summary>
@@ -44,9 +49,8 @@ namespace System.Data.Entity.Core.Metadata.Edm
             get { return _identity ?? Name; }
         }
 
-        /// <summary>
-        ///     Returns the name of the member
-        /// </summary>
+        /// <summary>Gets the name of this member.</summary>
+        /// <returns>The name of this member.</returns>
         [MetadataProperty(PrimitiveTypeKind.String, false)]
         public virtual string Name
         {
@@ -56,34 +60,45 @@ namespace System.Data.Entity.Core.Metadata.Edm
                 Check.NotEmpty(value, "value");
                 Util.ThrowIfReadOnly(this);
 
-                _name = value;
-
-                if ((_declaringType != null)
-                    && (_declaringType.Members.Except(new[] { this })
-                                      .Any(c => string.Equals(Identity, c.Identity, StringComparison.Ordinal))))
+                if (!string.Equals(_name, value, StringComparison.Ordinal))
                 {
-                    // Duplicate configured name, uniquify the identity so that
-                    // a validation exception can be generated later on. For valid
-                    // models, we sync it back up in SetReadOnly()
-                    _identity = _declaringType.Members.UniquifyName(Identity);
+                    _name = value;
+
+                    if (_declaringType != null)
+                    {
+                        if (_declaringType
+                            .Members.Except(new[] { this })
+                            .Any(c => string.Equals(Identity, c.Identity, StringComparison.Ordinal)))
+                        {
+                            // Duplicate configured name, uniquify the identity so that
+                            // a validation exception can be generated later on. For valid
+                            // models, we sync it back up in SetReadOnly()
+                            _identity = _declaringType.Members.UniquifyIdentity(Identity);
+                        }
+
+                        _declaringType.NotifyItemIdentityChanged();
+                    }
                 }
             }
         }
 
-        /// <summary>
-        ///     Returns the declaring type of the member
-        /// </summary>
+        /// <summary>Gets the type on which this member is declared.</summary>
+        /// <returns>
+        ///     A <see cref="T:System.Data.Entity.Core.Metadata.Edm.StructuralType" /> object that represents the type on which this member is declared.
+        /// </returns>
         public virtual StructuralType DeclaringType
         {
             get { return _declaringType; }
         }
 
         /// <summary>
-        ///     Returns the TypeUsage object containing the type information and facets
-        ///     about the type
+        ///     Gets the instance of the <see cref="T:System.Data.Entity.Core.Metadata.Edm.TypeUsage" /> class that contains both the type of the member and facets for the type.
         /// </summary>
+        /// <returns>
+        ///     A <see cref="T:System.Data.Entity.Core.Metadata.Edm.TypeUsage" /> object that contains both the type of the member and facets for the type.
+        /// </returns>
         [MetadataProperty(BuiltInTypeKind.TypeUsage, false)]
-        public TypeUsage TypeUsage
+        public virtual TypeUsage TypeUsage
         {
             get { return _typeUsage; }
             protected set
@@ -95,10 +110,8 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
         }
 
-        /// <summary>
-        ///     Overriding System.Object.ToString to provide better String representation
-        ///     for this type.
-        /// </summary>
+        /// <summary>Returns the name of this member.</summary>
+        /// <returns>The name of this member.</returns>
         public override string ToString()
         {
             return Name;
@@ -114,7 +127,15 @@ namespace System.Data.Entity.Core.Metadata.Edm
             {
                 base.SetReadOnly();
 
+                var currentIdentity = _identity;
                 _identity = Name;
+
+                if (_declaringType != null
+                    && currentIdentity != null
+                    && !string.Equals(currentIdentity, _identity, StringComparison.Ordinal))
+                {
+                    _declaringType.NotifyItemIdentityChanged();
+                }
 
                 // TypeUsage is always readonly, no need to set it
             }
@@ -148,7 +169,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
         /// <summary>
         ///     Tells whether this member's Store generated pattern is marked as Identity in the EDM definition
         /// </summary>
-        internal bool IsStoreGeneratedIdentity
+        public bool IsStoreGeneratedIdentity
         {
             get
             {

@@ -2,9 +2,12 @@
 
 namespace System.Data.Entity
 {
-    using System;
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Data.Entity.Config;
+    using System.Data.Entity.Core.Common;
+    using System.Data.Entity.Infrastructure;
+    using System.Reflection;
 
     /// <summary>
     ///     A resolver that allows to add dependency resolvers at runtime.
@@ -17,11 +20,13 @@ namespace System.Data.Entity
         private static readonly Dictionary<Type, Func<object, object>> _resolvers = new Dictionary<Type, Func<object, object>>();
         private static readonly MutableResolver _instance = new MutableResolver();
 
+        private static readonly FieldInfo _executionStrategyFactoriesField = typeof(DbProviderServices).GetField("_executionStrategyFactories", BindingFlags.NonPublic | BindingFlags.Static);
+
         private MutableResolver()
         {
         }
 
-        /// <inheritdoc/>
+        /// <inheritdoc />
         public object GetService(Type type, object key)
         {
             Func<object, object> resolver;
@@ -39,16 +44,31 @@ namespace System.Data.Entity
         }
 
         /// <summary>
-        ///     Adds or replaces a resolver for a dependency of type <typeparamref name="TResolver"/>.
+        ///     Adds or replaces a resolver for a dependency of type <typeparamref name="TResolver" />.
         /// </summary>
         /// <remarks>
-        ///     Remember to call <see cref="ClearResolvers"/> from a <c>finally</c> block after using this method.
+        ///     Remember to call <see cref="ClearResolvers" /> from a <c>finally</c> block or Dispose method after using this method.
         /// </remarks>
         /// <typeparam name="TResolver">The type of dependency to resolve.</typeparam>
         /// <param name="resolver">A delegate that takes a key object and returns a dependency instance.</param>
         public static void AddResolver<TResolver>(Func<object, object> resolver)
         {
-            _resolvers.Add(typeof(TResolver), resolver);
+            if (typeof(TResolver) == typeof(Func<IExecutionStrategy>))
+            {
+                ClearCache();
+            }
+            _resolvers[typeof(TResolver)] = resolver;
+        }
+
+        /// <summary>
+        ///     Adds or replaces a resolver for a dependency of type <typeparamref name="TResolver" />.
+        /// </summary>
+        /// <remarks>
+        ///     Remember to call <see cref="ClearResolvers" /> from a <c>finally</c> block or Dispose method after using this method.
+        /// </remarks>
+        public static void AddResolver<TResolver>(IDbDependencyResolver resolver)
+        {
+            _resolvers[typeof(TResolver)] = k => resolver.GetService<TResolver>(k);
         }
 
         /// <summary>
@@ -57,6 +77,14 @@ namespace System.Data.Entity
         public static void ClearResolvers()
         {
             _resolvers.Clear();
+
+            ClearCache();
+        }
+
+        private static void ClearCache()
+        {
+            var executionStrategyFactories = (ConcurrentDictionary<ExecutionStrategyKey, Func<IExecutionStrategy>>)_executionStrategyFactoriesField.GetValue(null);
+            executionStrategyFactories.Clear();
         }
     }
 }

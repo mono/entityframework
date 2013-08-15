@@ -34,11 +34,11 @@ namespace System.Data.Entity.Infrastructure
 
         /// <summary>
         ///     Creates a new connection factory with a default BaseConnectionString property of
-        ///     'Data Source=.\SQLEXPRESS; Integrated Security=True;'.
+        ///     'Data Source=.\SQLEXPRESS; Integrated Security=True; MultipleActiveResultSets=True;'.
         /// </summary>
         public SqlConnectionFactory()
         {
-            _baseConnectionString = @"Data Source=.\SQLEXPRESS; Integrated Security=True;";
+            _baseConnectionString = @"Data Source=.\SQLEXPRESS; Integrated Security=True; MultipleActiveResultSets=True;";
         }
 
         /// <summary>

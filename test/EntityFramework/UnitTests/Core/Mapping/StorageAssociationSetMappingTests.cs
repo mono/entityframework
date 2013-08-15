@@ -12,7 +12,7 @@ namespace System.Data.Entity.Core.Mapping
         public void Can_initialize_with_entity_set()
         {
             var entitySet = new EntitySet();
-            var associationSet = new AssociationSet("AS", new AssociationType());
+            var associationSet = new AssociationSet("AS", new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace));
 
             var associationSetMapping
                 = new StorageAssociationSetMapping(associationSet, entitySet);
@@ -32,7 +32,7 @@ namespace System.Data.Entity.Core.Mapping
         public void Can_get_association_set()
         {
             var entitySet = new EntitySet();
-            var associationSet = new AssociationSet("AS", new AssociationType());
+            var associationSet = new AssociationSet("AS", new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace));
 
             var associationSetMapping
                 = new StorageAssociationSetMapping(associationSet, entitySet);
@@ -44,7 +44,7 @@ namespace System.Data.Entity.Core.Mapping
         public void Can_get_and_set_store_entity_set()
         {
             var entitySet1 = new EntitySet();
-            var associationSet = new AssociationSet("AS", new AssociationType());
+            var associationSet = new AssociationSet("AS", new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace));
 
             var associationSetMapping
                 = new StorageAssociationSetMapping(associationSet, entitySet1);
@@ -61,9 +61,9 @@ namespace System.Data.Entity.Core.Mapping
         [Fact]
         public void Can_get_table()
         {
-            var entityType = new EntityType();
+            var entityType = new EntityType("E", "N", DataSpace.CSpace);
             var entitySet = new EntitySet("ES", null, null, null, entityType);
-            var associationSet = new AssociationSet("AS", new AssociationType());
+            var associationSet = new AssociationSet("AS", new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace));
 
             var associationSetMapping
                 = new StorageAssociationSetMapping(associationSet, entitySet);
@@ -72,10 +72,10 @@ namespace System.Data.Entity.Core.Mapping
         }
 
         [Fact]
-        public void Can_get_and_set_source__and_target_end_mappings()
+        public void Can_get_and_set_source_and_target_end_mappings()
         {
             var entitySet1 = new EntitySet();
-            var associationSet = new AssociationSet("AS", new AssociationType());
+            var associationSet = new AssociationSet("AS", new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace));
 
             var associationSetMapping
                 = new StorageAssociationSetMapping(associationSet, entitySet1);
@@ -83,13 +83,13 @@ namespace System.Data.Entity.Core.Mapping
             Assert.Null(associationSetMapping.SourceEndMapping);
             Assert.Null(associationSetMapping.TargetEndMapping);
 
-            var sourceEndMapping = new StorageEndPropertyMapping(new EdmProperty("P"));
+            var sourceEndMapping = new StorageEndPropertyMapping();
 
             associationSetMapping.SourceEndMapping = sourceEndMapping;
 
             Assert.Same(sourceEndMapping, associationSetMapping.SourceEndMapping);
 
-            var targetEndMapping = new StorageEndPropertyMapping(new EdmProperty("P"));
+            var targetEndMapping = new StorageEndPropertyMapping();
 
             associationSetMapping.TargetEndMapping = targetEndMapping;
 
@@ -100,7 +100,7 @@ namespace System.Data.Entity.Core.Mapping
         public void Can_add_column_conditions()
         {
             var entitySet1 = new EntitySet();
-            var associationSet = new AssociationSet("AS", new AssociationType());
+            var associationSet = new AssociationSet("AS", new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace));
 
             var associationSetMapping
                 = new StorageAssociationSetMapping(associationSet, entitySet1);

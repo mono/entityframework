@@ -9,14 +9,12 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
     using System.Data.Entity.Core.Common.CommandTrees.ExpressionBuilder;
     using System.Data.Entity.Core.Common.Utils;
     using System.Data.Entity.Core.Metadata.Edm;
-    using System.Data.Entity.Internal;
     using System.Data.Entity.Spatial;
     using System.Data.Entity.Utilities;
     using System.Diagnostics;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-    using IEntityStateEntry = System.Data.Entity.Core.IEntityStateEntry;
 
     internal class DynamicUpdateCommand : UpdateCommand
     {
@@ -104,8 +102,7 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
         /// </summary>
         internal override long Execute(
             Dictionary<int, object> identifierValues,
-            List<KeyValuePair<PropagatorResult, object>> generatedValues,
-            IDbCommandInterceptor commandInterceptor)
+            List<KeyValuePair<PropagatorResult, object>> generatedValues)
         {
             // Compile command
             using (var command = CreateCommand(identifierValues))
@@ -174,16 +171,7 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
                 }
                 else
                 {
-                    // We currently only intercept commands on this code path.
-
-                    var executeCommand = true;
-
-                    if (commandInterceptor != null)
-                    {
-                        executeCommand = commandInterceptor.Intercept(command);
-                    }
-
-                    rowsAffected = executeCommand ? command.ExecuteNonQuery() : 1;
+                    rowsAffected = command.ExecuteNonQuery();
                 }
 
                 return rowsAffected;

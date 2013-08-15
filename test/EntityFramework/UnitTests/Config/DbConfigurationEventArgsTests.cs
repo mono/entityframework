@@ -16,7 +16,7 @@ namespace System.Data.Entity.Config
                 Assert.Equal(
                     "resolver",
                     Assert.Throws<ArgumentNullException>(
-                        () => (new DbConfigurationEventArgs(new Mock<InternalConfiguration>().Object))
+                        () => (new DbConfigurationEventArgs(new Mock<InternalConfiguration>(null, null, null, null).Object))
                                   .AddDependencyResolver(null, false)).ParamName);
             }
 
@@ -37,7 +37,7 @@ namespace System.Data.Entity.Config
             [Fact]
             public void AddDependencyResolver_delegates_to_internal_configuration()
             {
-                var mockInternalConfiguration = new Mock<InternalConfiguration>();
+                var mockInternalConfiguration = new Mock<InternalConfiguration>(null, null, null, null);
                 var resolver = new Mock<IDbDependencyResolver>().Object;
 
                 new DbConfigurationEventArgs(mockInternalConfiguration.Object).AddDependencyResolver(resolver, true);
@@ -46,12 +46,50 @@ namespace System.Data.Entity.Config
             }
         }
 
+        public class AddSecondaryResolver
+        {
+            [Fact]
+            public void AddSecondaryResolver_throws_if_given_a_null_resolver()
+            {
+                Assert.Equal(
+                    "resolver",
+                    Assert.Throws<ArgumentNullException>(
+                        () => (new DbConfigurationEventArgs(new Mock<InternalConfiguration>(null, null, null, null).Object))
+                                  .AddSecondaryResolver(null)).ParamName);
+            }
+
+            [Fact]
+            public void AddSecondaryResolver_throws_if_the_configuation_is_locked()
+            {
+                var internalConfiguration = new InternalConfiguration();
+                internalConfiguration.Lock();
+
+                Assert.Equal(
+                    Strings.ConfigurationLocked("AddSecondaryResolver"),
+                    Assert.Throws<InvalidOperationException>(
+                        () =>
+                        new DbConfigurationEventArgs(internalConfiguration)
+                            .AddSecondaryResolver(new Mock<IDbDependencyResolver>().Object)).Message);
+            }
+
+            [Fact]
+            public void AddSecondaryResolver_delegates_to_internal_configuration()
+            {
+                var mockInternalConfiguration = new Mock<InternalConfiguration>(null, null, null, null);
+                var resolver = new Mock<IDbDependencyResolver>().Object;
+
+                new DbConfigurationEventArgs(mockInternalConfiguration.Object).AddSecondaryResolver(resolver);
+
+                mockInternalConfiguration.Verify(m => m.AddSecondaryResolver(resolver));
+            }
+        }
+
         public class ResolverSnapshot
         {
             [Fact]
             public void ResolverSnapshot_delegates_to_internal_configuration()
             {
-                var mockInternalConfiguration = new Mock<InternalConfiguration>();
+                var mockInternalConfiguration = new Mock<InternalConfiguration>(null, null, null, null);
                 var resolver = new Mock<IDbDependencyResolver>().Object;
                 mockInternalConfiguration.Setup(m => m.ResolverSnapshot).Returns(resolver);
 
@@ -59,24 +97,24 @@ namespace System.Data.Entity.Config
             }
         }
 
-        public class WrapService
+        public class ReplaceService
         {
             public interface IPilkington
             {
             }
 
             [Fact]
-            public void WrapService_throws_if_given_a_null_delegate()
+            public void ReplaceService_throws_if_given_a_null_delegate()
             {
                 Assert.Equal(
-                    "serviceWrapper",
+                    "serviceInterceptor",
                     Assert.Throws<ArgumentNullException>(
-                        () => (new DbConfigurationEventArgs(new Mock<InternalConfiguration>().Object))
-                                  .WrapService<IPilkington>(null)).ParamName);
+                        () => (new DbConfigurationEventArgs(new Mock<InternalConfiguration>(null, null, null, null).Object))
+                                  .ReplaceService<IPilkington>(null)).ParamName);
             }
 
             [Fact]
-            public void WrapService_wraps_service_and_returns_wrapped_service()
+            public void ReplaceService_wraps_service_and_returns_wrapped_service()
             {
                 var originalService = new Mock<IPilkington>().Object;
                 var wrappedService = new Mock<IPilkington>().Object;
@@ -88,7 +126,7 @@ namespace System.Data.Entity.Config
                 internalConfiguration.AddDependencyResolver(resolver.Object);
 
                 new DbConfigurationEventArgs(internalConfiguration)
-                    .WrapService<IPilkington>(
+                    .ReplaceService<IPilkington>(
                     (s, k) =>
                     {
                         Assert.Same(originalService, s);

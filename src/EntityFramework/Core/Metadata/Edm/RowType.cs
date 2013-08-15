@@ -8,6 +8,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
     using System.Data.Entity.Utilities;
     using System.Diagnostics;
     using System.Diagnostics.CodeAnalysis;
+    using System.Linq;
     using System.Text;
     using System.Threading;
 
@@ -68,20 +69,28 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     Returns the kind of the type
+        ///     Gets the built-in type kind for this <see cref="T:System.Data.Entity.Core.Metadata.Edm.RowType" />.
         /// </summary>
+        /// <returns>
+        ///     A <see cref="T:System.Data.Entity.Core.Metadata.Edm.BuiltInTypeKind" /> object that represents the built-in type kind for this
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Metadata.Edm.RowType" />
+        ///     .
+        /// </returns>
         public override BuiltInTypeKind BuiltInTypeKind
         {
             get { return BuiltInTypeKind.RowType; }
         }
 
         /// <summary>
-        ///     Returns the list of properties for this row type
+        ///     Gets the list of properties on this <see cref="T:System.Data.Entity.Core.Metadata.Edm.RowType" />.
         /// </summary>
-        /// <summary>
-        ///     Returns just the properties from the collection
-        ///     of members on this type
-        /// </summary>
+        /// <returns>
+        ///     A collection of type <see cref="T:System.Data.Entity.Core.Metadata.Edm.ReadOnlyMetadataCollection`1" /> that contains the list of properties on this
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Metadata.Edm.RowType" />
+        ///     .
+        /// </returns>
         public virtual ReadOnlyMetadataCollection<EdmProperty> Properties
         {
             get
@@ -98,6 +107,11 @@ namespace System.Data.Entity.Core.Metadata.Edm
                 }
                 return _properties;
             }
+        }
+
+        public ReadOnlyMetadataCollection<EdmProperty> DeclaredProperties
+        {
+            get { return GetDeclaredOnlyMembers<EdmProperty>(); }
         }
 
         /// <summary>
@@ -231,6 +245,30 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
 
             return true;
+        }
+
+        /// <summary>
+        ///     The factory method for constructing the <see cref="RowType" /> object.
+        /// </summary>
+        /// <param name="properties">Properties of the row type object.</param>
+        /// <param name="metadataProperties">Metadata properties that will be added to the function. Can be null.</param>
+        /// <returns>
+        ///     A new, read-only instance of the <see cref="RowType" /> object.
+        /// </returns>
+        public static RowType Create(IEnumerable<EdmProperty> properties, IEnumerable<MetadataProperty> metadataProperties)
+        {
+            Check.NotNull(properties, "properties");
+
+            var rowType = new RowType(properties);
+
+            if (metadataProperties != null)
+            {
+                rowType.AddMetadataProperties(metadataProperties.ToList());
+            }
+
+            rowType.SetReadOnly();
+
+            return rowType;
         }
     }
 }

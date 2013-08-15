@@ -36,15 +36,17 @@ namespace System.Data.Entity.Core.EntityClient
         }
 
         /// <summary>
-        ///     The connection object owning this transaction object
+        ///     Gets <see cref="T:System.Data.Entity.Core.EntityClient.EntityConnection" /> for this
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.EntityClient.EntityTransaction" />
+        ///     .
         /// </summary>
+        /// <returns>
+        ///     An <see cref="T:System.Data.Entity.Core.EntityClient.EntityConnection" /> to the underlying data source.
+        /// </returns>
         public new virtual EntityConnection Connection
         {
-            get
-            {
-                // follow the store transaction behavior
-                return ((null != _storeTransaction.Connection) ? _connection : null);
-            }
+            get { return (EntityConnection)DbConnection; }
         }
 
         /// <summary>
@@ -52,19 +54,24 @@ namespace System.Data.Entity.Core.EntityClient
         /// </summary>
         protected override DbConnection DbConnection
         {
-            get
-            {
-                // follow the store transaction behavior
-                return ((null != _storeTransaction.Connection) ? _connection : null);
-            }
+            // follow the store transaction behavior
+            get { return (((_storeTransaction != null ? _storeTransaction.Connection : null) != null) ? _connection : null); }
         }
 
         /// <summary>
-        ///     The isolation level of this transaction
+        ///     Gets the isolation level of this <see cref="T:System.Data.Entity.Core.EntityClient.EntityTransaction" />.
         /// </summary>
+        /// <returns>
+        ///     An <see cref="T:System.Data.IsolationLevel" /> enumeration value that represents the isolation level of the underlying transaction.
+        /// </returns>
         public override IsolationLevel IsolationLevel
         {
-            get { return _storeTransaction.IsolationLevel; }
+            get
+            {
+                return _storeTransaction != null
+                           ? _storeTransaction.IsolationLevel
+                           : default(IsolationLevel);
+            }
         }
 
         /// <summary>
@@ -75,14 +82,15 @@ namespace System.Data.Entity.Core.EntityClient
             get { return _storeTransaction; }
         }
 
-        /// <summary>
-        ///     Commits the transaction
-        /// </summary>
+        /// <summary>Commits the underlying transaction.</summary>
         public override void Commit()
         {
             try
             {
-                _storeTransaction.Commit();
+                if (_storeTransaction != null)
+                {
+                    _storeTransaction.Commit();
+                }
             }
             catch (Exception e)
             {
@@ -97,14 +105,15 @@ namespace System.Data.Entity.Core.EntityClient
             ClearCurrentTransaction();
         }
 
-        /// <summary>
-        ///     Rolls back the transaction
-        /// </summary>
+        /// <summary>Rolls back the underlying transaction.</summary>
         public override void Rollback()
         {
             try
             {
-                _storeTransaction.Rollback();
+                if (_storeTransaction != null)
+                {
+                    _storeTransaction.Rollback();
+                }
             }
             catch (Exception e)
             {
@@ -128,7 +137,11 @@ namespace System.Data.Entity.Core.EntityClient
             if (disposing)
             {
                 ClearCurrentTransaction();
-                _storeTransaction.Dispose();
+
+                if (_storeTransaction != null)
+                {
+                    _storeTransaction.Dispose();
+                }
             }
             base.Dispose(disposing);
         }
@@ -138,8 +151,8 @@ namespace System.Data.Entity.Core.EntityClient
         /// </summary>
         private void ClearCurrentTransaction()
         {
-            if (_connection.CurrentTransaction
-                == this)
+            if ((_connection != null)
+                && (_connection.CurrentTransaction == this))
             {
                 _connection.ClearCurrentTransaction();
             }

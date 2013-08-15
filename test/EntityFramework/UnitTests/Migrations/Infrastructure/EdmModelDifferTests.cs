@@ -3,68 +3,28 @@
 namespace System.Data.Entity.Migrations.Infrastructure
 {
     using System.ComponentModel.DataAnnotations.Schema;
+    using System.Data.Common;
+    using System.Data.Entity.Config;
+    using System.Data.Entity.Core.Common;
+    using System.Data.Entity.Core.Mapping;
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Infrastructure;
     using System.Data.Entity.Migrations.Edm;
+    using System.Data.Entity.Migrations.Infrastructure.FunctionsModel;
     using System.Data.Entity.Migrations.Model;
+    using System.Data.Entity.Migrations.Sql;
     using System.Data.Entity.Migrations.UserRoles_v1;
     using System.Data.Entity.Migrations.UserRoles_v2;
     using System.Data.Entity.Utilities;
     using System.Linq;
+    using System.Xml.Linq;
     using Xunit;
+    using Order = System.Data.Entity.Migrations.Order;
 
     [Variant(DatabaseProvider.SqlClient, ProgrammingLanguage.CSharp)]
     [Variant(DatabaseProvider.SqlServerCe, ProgrammingLanguage.CSharp)]
     public class EdmModelDifferTests : DbTestCase
     {
-        [MigrationsTheory]
-        public void System_operations_are_ignored_by_default()
-        {
-            var modelBuilder = new DbModelBuilder();
-
-            var model1 = modelBuilder.Build(ProviderInfo).GetModel();
-
-            modelBuilder = new DbModelBuilder();
-            modelBuilder.Entity<MigrationsCustomer>();
-
-            var model2 = modelBuilder.Build(ProviderInfo).GetModel();
-            model2.Descendants().Each(e => e.SetAttributeValue(EdmXNames.IsSystemName, true));
-
-            var operations = new EdmModelDiffer().Diff(model1, model2);
-
-            Assert.Equal(0, operations.Count());
-        }
-
-        [MigrationsTheory]
-        public void System_operations_are_included_when_requested()
-        {
-            var modelBuilder = new DbModelBuilder();
-
-            var model1 = modelBuilder.Build(ProviderInfo).GetModel();
-
-            modelBuilder = new DbModelBuilder();
-            modelBuilder.Entity<MigrationsCustomer>();
-
-            var model2 = modelBuilder.Build(ProviderInfo).GetModel();
-            model2.Descendants().Each(e => e.SetAttributeValue(EdmXNames.IsSystemName, true));
-
-            var operations = new EdmModelDiffer().Diff(model1, model2, includeSystemOperations: true);
-
-            Assert.True(operations.All(o => o.IsSystem));
-
-            var createTableOperation
-                = operations.OfType<CreateTableOperation>().First();
-
-            Assert.True(createTableOperation.IsSystem);
-
-            operations = new EdmModelDiffer().Diff(model2, model1, includeSystemOperations: true);
-
-            var dropTableOperation
-                = operations.OfType<DropTableOperation>().First();
-
-            Assert.True(dropTableOperation.IsSystem);
-        }
-
         [MigrationsTheory]
         public void Can_diff_identical_models_at_different_edm_versions_and_no_diffs_produced()
         {
@@ -237,13 +197,13 @@ namespace System.Data.Entity.Migrations.Infrastructure
             modelBuilder = new DbModelBuilder();
 
             modelBuilder.Entity<OrderLine>()
-                .HasKey(
-                    ol => new
-                              {
-                                  ol.Id,
-                                  ol.OrderId
-                              })
-                .ToTable("tbl_OrderLines");
+                        .HasKey(
+                            ol => new
+                                      {
+                                          ol.Id,
+                                          ol.OrderId
+                                      })
+                        .ToTable("tbl_OrderLines");
 
             var model2 = modelBuilder.Build(ProviderInfo);
 
@@ -416,6 +376,74 @@ namespace System.Data.Entity.Migrations.Infrastructure
             Assert.Null(inverse.Column.IsUnicode);
         }
 
+        [MigrationsTheory] // CodePlex 726
+        public void Can_handle_max_length_set_to_MAX_in_SSDL()
+        {
+            var modelBuilder = new DbModelBuilder();
+            modelBuilder.Entity<MigrationsCustomer>().Property(c => c.Photo).HasMaxLength(100);
+            modelBuilder.Entity<MigrationsCustomer>().Property(c => c.FullName).HasMaxLength(100);
+            var sourceModel = modelBuilder.Build(ProviderInfo).GetModel();
+
+            modelBuilder.Entity<MigrationsCustomer>().Property(c => c.Photo).IsMaxLength();
+            modelBuilder.Entity<MigrationsCustomer>().Property(c => c.FullName).IsMaxLength();
+            var targetModel = modelBuilder.Build(ProviderInfo).GetModel();
+
+            // Artificially add MaxLength=MAX to a couple of properties
+            var customerEntity = targetModel
+                .Elements().First()
+                .Elements().First()
+                .Elements().Single(e => e.Name.LocalName == "StorageModels")
+                .Elements().Single(e => e.Name.LocalName == "Schema")
+                .Elements().Single(e => e.Name.LocalName == "EntityType" && e.Attributes("Name").Any(a => a.Value == "MigrationsCustomer"));
+
+            customerEntity.Elements().Single(e => e.Name.LocalName == "Property" && e.Attributes("Name").Any(a => a.Value == "FullName"))
+                          .Add(new XAttribute("MaxLength", "Max"));
+            customerEntity.Elements().Single(e => e.Name.LocalName == "Property" && e.Attributes("Name").Any(a => a.Value == "Photo"))
+                          .Add(new XAttribute("MaxLength", "MAX"));
+
+            DbProviderInfo providerInfo;
+            var storageMappingItemCollection = sourceModel.GetStorageMappingItemCollection(out providerInfo);
+
+            var sourceMetadata = new EdmModelDiffer.ModelMetadata
+                                     {
+                                         Model = sourceModel,
+                                         StoreItemCollection = storageMappingItemCollection.StoreItemCollection,
+                                         StorageEntityContainerMapping
+                                             = storageMappingItemCollection.GetItems<StorageEntityContainerMapping>().Single(),
+                                         ProviderManifest = GetProviderManifest(providerInfo),
+                                         ProviderInfo = providerInfo
+                                     };
+
+            var targetMetadata = new EdmModelDiffer.ModelMetadata
+                                     {
+                                         Model = targetModel,
+                                         // Use the source model here since it doesn't effect the test and the SQL Server provider
+                                         // won't load the target model
+                                         StoreItemCollection = storageMappingItemCollection.StoreItemCollection,
+                                         StorageEntityContainerMapping
+                                             = storageMappingItemCollection.GetItems<StorageEntityContainerMapping>().Single(),
+                                         ProviderManifest = GetProviderManifest(providerInfo),
+                                         ProviderInfo = providerInfo
+                                     };
+
+            var operations = new EdmModelDiffer().Diff(sourceMetadata, targetMetadata, null, null);
+
+            Assert.Equal(2, operations.Count());
+            operations.OfType<AlterColumnOperation>().Each(
+                o =>
+                    {
+                        Assert.Null(o.Column.MaxLength);
+                        Assert.Equal(100, ((AlterColumnOperation)o.Inverse).Column.MaxLength);
+                    });
+        }
+
+        private static DbProviderManifest GetProviderManifest(DbProviderInfo providerInfo)
+        {
+            return DbConfiguration.GetService<DbProviderFactory>(providerInfo.ProviderInvariantName)
+                                  .GetProviderServices()
+                                  .GetProviderManifest(providerInfo.ProviderManifestToken);
+        }
+
         [MigrationsTheory]
         public void Can_populate_table_model_for_added_tables()
         {
@@ -463,6 +491,53 @@ namespace System.Data.Entity.Migrations.Infrastructure
 
             Assert.Equal(1, operations.Count());
             Assert.Equal(1, operations.OfType<CreateTableOperation>().Count());
+        }
+
+        [MigrationsTheory]
+        public void Can_detect_added_modification_functions()
+        {
+            var modelBuilder = new DbModelBuilder();
+
+            var model1 = modelBuilder.Build(ProviderInfo);
+
+            var model2 = new TestContext();
+
+            var commandTreeGenerator
+                = new ModificationCommandTreeGenerator(TestContext.CreateDynamicUpdateModel());
+
+            var createProcedureOperations
+                = new EdmModelDiffer()
+                    .Diff(
+                        model1.GetModel(), 
+                        model2.GetModel(), 
+                        commandTreeGenerator, 
+                        new SqlServerMigrationSqlGenerator())
+                    .OfType<CreateProcedureOperation>()
+                    .ToList();
+
+            Assert.Equal(14, createProcedureOperations.Count);
+            Assert.True(createProcedureOperations.All(c => c.Name.Any()));
+            Assert.True(createProcedureOperations.All(c => c.BodySql.Any()));
+        }
+
+        [MigrationsTheory]
+        public void Can_detect_removed_modification_functions()
+        {
+            var modelBuilder = new DbModelBuilder();
+
+            var model1 = modelBuilder.Build(ProviderInfo);
+
+            modelBuilder.Entity<OrderLine>().MapToStoredProcedures();
+
+            var model2 = new TestContext();
+
+            var dropProcedureOperations
+                = new EdmModelDiffer().Diff(model2.GetModel(), model1.GetModel())
+                                      .OfType<DropProcedureOperation>()
+                                      .ToList();
+
+            Assert.Equal(14, dropProcedureOperations.Count);
+            Assert.True(dropProcedureOperations.All(c => c.Name.Any()));
         }
 
         [MigrationsTheory]
@@ -698,7 +773,7 @@ namespace System.Data.Entity.Migrations.Infrastructure
         }
 
         [MigrationsTheory]
-        public void Can_detect_moved_system_tables()
+        public void Moved_tables_should_include_create_table_operation()
         {
             var modelBuilder = new DbModelBuilder();
             modelBuilder.Entity<MigrationsCustomer>();
@@ -709,14 +784,12 @@ namespace System.Data.Entity.Migrations.Infrastructure
             modelBuilder.Entity<MigrationsCustomer>().ToTable("MigrationsCustomer", "foo");
 
             var model2 = modelBuilder.Build(ProviderInfo).GetModel();
-            model2.Descendants().Each(e => e.SetAttributeValue(EdmXNames.IsSystemName, true));
 
-            var operations = new EdmModelDiffer().Diff(model1, model2, includeSystemOperations: true);
+            var operations = new EdmModelDiffer().Diff(model1, model2);
 
             var moveTableOperation
                 = operations.OfType<MoveTableOperation>().Single();
 
-            Assert.True(moveTableOperation.IsSystem);
             Assert.NotNull(moveTableOperation.CreateTableOperation);
             Assert.Equal("dbo.MigrationsCustomer", moveTableOperation.Name);
             Assert.Equal("foo.MigrationsCustomer", moveTableOperation.CreateTableOperation.Name);
@@ -776,29 +849,29 @@ namespace System.Data.Entity.Migrations.Infrastructure
             var modelBuilder = new DbModelBuilder();
 
             modelBuilder.Entity<MigrationsCustomer>()
-                .Map(
-                    mc =>
-                        {
-                            mc.Properties(
-                                c => new
-                                         {
-                                             c.Id,
-                                             c.FullName,
-                                             c.HomeAddress,
-                                             c.WorkAddress
-                                         });
-                            mc.ToTable("MigrationsCustomers");
-                        })
-                .Map(
-                    mc =>
-                        {
-                            mc.Properties(
-                                c => new
-                                         {
-                                             c.Name
-                                         });
-                            mc.ToTable("Customers_Split");
-                        });
+                        .Map(
+                            mc =>
+                                {
+                                    mc.Properties(
+                                        c => new
+                                                 {
+                                                     c.Id,
+                                                     c.FullName,
+                                                     c.HomeAddress,
+                                                     c.WorkAddress
+                                                 });
+                                    mc.ToTable("MigrationsCustomers");
+                                })
+                        .Map(
+                            mc =>
+                                {
+                                    mc.Properties(
+                                        c => new
+                                                 {
+                                                     c.Name
+                                                 });
+                                    mc.ToTable("Customers_Split");
+                                });
 
             var model1 = modelBuilder.Build(ProviderInfo);
 
@@ -866,9 +939,9 @@ namespace System.Data.Entity.Migrations.Infrastructure
             var model1 = modelBuilder.Build(ProviderInfo);
 
             modelBuilder.Entity<MigrationsCustomer>()
-                .HasMany(p => p.Orders)
-                .WithOptional()
-                .Map(c => c.MapKey("CustomerId", "CustomerName"));
+                        .HasMany(p => p.Orders)
+                        .WithOptional()
+                        .Map(c => c.MapKey("CustomerId", "CustomerName"));
 
             var model2 = modelBuilder.Build(ProviderInfo);
 

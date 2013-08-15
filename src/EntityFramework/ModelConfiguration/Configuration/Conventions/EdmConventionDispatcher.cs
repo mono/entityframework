@@ -101,7 +101,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
                 base.VisitEdmAssociationEnd(item);
             }
 
-            protected override void VisitEdmProperty(EdmProperty item)
+            protected internal override void VisitEdmProperty(EdmProperty item)
             {
                 Dispatch(item);
 
@@ -150,7 +150,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
                 base.VisitComplexType(item);
             }
 
-            protected override void VisitEdmEntityType(EntityType item)
+            protected internal override void VisitEdmEntityType(EntityType item)
             {
                 Dispatch(item);
 
@@ -163,7 +163,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
                 }
             }
 
-            protected override void VisitEdmAssociationType(AssociationType item)
+            protected internal override void VisitEdmAssociationType(AssociationType item)
             {
                 Dispatch(item);
 

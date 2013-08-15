@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
-namespace System.Data.Entity.ModelConfiguration.Configuration.Types.UnitTests
+namespace System.Data.Entity.ModelConfiguration.Configuration.Types
 {
     using System.Data.Entity.Core.Mapping;
     using System.Data.Entity.Core.Metadata.Edm;
@@ -18,13 +18,13 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types.UnitTests
     public sealed class EntityTypeConfigurationTests
     {
         [Fact]
-        public void MapToFunctions_should_create_empty_function_mapping_configuration()
+        public void MapToStoredProcedures_should_create_empty_function_mapping_configuration()
         {
             var entityTypeConfiguration = new EntityTypeConfiguration(typeof(object));
 
             Assert.False(entityTypeConfiguration.IsMappedToFunctions);
 
-            entityTypeConfiguration.MapToFunctions();
+            entityTypeConfiguration.MapToStoredProcedures();
 
             Assert.True(entityTypeConfiguration.IsMappedToFunctions);
         }
@@ -36,7 +36,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types.UnitTests
 
             Assert.False(entityTypeConfiguration.IsMappedToFunctions);
 
-            entityTypeConfiguration.MapToFunctions(new ModificationFunctionsConfiguration());
+            entityTypeConfiguration.MapToStoredProcedures(new ModificationFunctionsConfiguration());
 
             Assert.True(entityTypeConfiguration.IsMappedToFunctions);
         }
@@ -54,7 +54,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types.UnitTests
             var modificationFunctionsConfigurationMock = new Mock<ModificationFunctionsConfiguration>();
 
             var entityTypeConfiguration = new EntityTypeConfiguration(typeof(object));
-            entityTypeConfiguration.MapToFunctions(modificationFunctionsConfigurationMock.Object);
+            entityTypeConfiguration.MapToStoredProcedures(modificationFunctionsConfigurationMock.Object);
 
             entityType.SetConfiguration(entityTypeConfiguration);
 
@@ -70,10 +70,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types.UnitTests
         [Fact]
         public void Configure_should_set_configuration()
         {
-            var entityType = new EntityType
-                                 {
-                                     Name = "E"
-                                 };
+            var entityType = new EntityType("E", "N", DataSpace.CSpace);
             var entityTypeConfiguration = new EntityTypeConfiguration(typeof(object));
 
             entityTypeConfiguration.Configure(entityType, new EdmModel(DataSpace.CSpace));
@@ -85,10 +82,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types.UnitTests
         public void Configure_should_configure_entity_set_name()
         {
             var model = new EdmModel(DataSpace.CSpace);
-            var entityType = new EntityType
-                                 {
-                                     Name = "E"
-                                 };
+            var entityType = new EntityType("E", "N", DataSpace.CSpace);
             var entitySet = model.AddEntitySet("ESet", entityType);
 
             var entityTypeConfiguration = new EntityTypeConfiguration(typeof(object))
@@ -105,10 +99,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types.UnitTests
         [Fact]
         public void Configure_should_configure_properties()
         {
-            var entityType = new EntityType
-                                 {
-                                     Name = "E"
-                                 };
+            var entityType = new EntityType("E", "N", DataSpace.CSpace);
             var property1 = EdmProperty.Primitive("P", PrimitiveType.GetEdmPrimitiveType(PrimitiveTypeKind.String));
 
             entityType.AddMember(property1);
@@ -127,10 +118,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types.UnitTests
         [Fact]
         public void Configure_should_throw_when_property_not_found()
         {
-            var entityType = new EntityType
-                                 {
-                                     Name = "E"
-                                 };
+            var entityType = new EntityType("E", "N", DataSpace.CSpace);
             var entityTypeConfiguration = new EntityTypeConfiguration(typeof(object));
             var mockPropertyConfiguration = new Mock<PrimitivePropertyConfiguration>();
             entityTypeConfiguration.Property(new PropertyPath(new MockPropertyInfo()), () => mockPropertyConfiguration.Object);
@@ -197,10 +185,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types.UnitTests
         [Fact]
         public void Configure_should_configure_and_order_keys_when_keys_and_order_specified()
         {
-            var entityType = new EntityType
-                                 {
-                                     Name = "E"
-                                 };
+            var entityType = new EntityType("E", "N", DataSpace.CSpace);
             var property = EdmProperty.Primitive("P2", PrimitiveType.GetEdmPrimitiveType(PrimitiveTypeKind.String));
 
             entityType.AddMember(property);
@@ -220,17 +205,16 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types.UnitTests
 
             entityTypeConfiguration.Configure(entityType, new EdmModel(DataSpace.CSpace));
 
-            Assert.Equal(2, entityType.DeclaredKeyProperties.Count);
-            Assert.Equal("P1", entityType.DeclaredKeyProperties.First().Name);
+            Assert.Equal(2, entityType.KeyProperties.Count);
+            Assert.Equal("P1", entityType.KeyProperties.First().Name);
         }
 
         [Fact]
         public void Configure_should_throw_when_key_properties_and_not_root_type()
         {
-            var entityType = new EntityType
+            var entityType = new EntityType("E", "N", DataSpace.CSpace)
                                  {
-                                     Name = "E",
-                                     BaseType = new EntityType()
+                                     BaseType = new EntityType("E", "N", DataSpace.CSpace)
                                  };
             var type = typeof(string);
 
@@ -247,10 +231,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types.UnitTests
         [Fact]
         public void Configure_should_throw_when_key_property_not_found()
         {
-            var entityType = new EntityType
-                                 {
-                                     Name = "E"
-                                 };
+            var entityType = new EntityType("E", "N", DataSpace.CSpace);
             var entityTypeConfiguration = new EntityTypeConfiguration(typeof(object));
             var mockPropertyInfo = new MockPropertyInfo(typeof(int), "Id");
             entityTypeConfiguration.Key(mockPropertyInfo);

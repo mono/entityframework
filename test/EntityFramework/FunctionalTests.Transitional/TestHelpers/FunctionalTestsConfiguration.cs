@@ -5,15 +5,17 @@ namespace System.Data.Entity.TestHelpers
     using System.Collections.Generic;
     using System.Data.Entity.Config;
     using System.Data.Entity.Infrastructure;
+    using System.Data.Entity.SqlServer;
+    using System.Data.Entity.SqlServerCompact;
     using System.Linq;
 
     public class FunctionalTestsConfiguration : DbConfiguration
     {
-        private static readonly IList<IDbConnectionFactory> _originalConnectionFactorieses = new List<IDbConnectionFactory>();
+        private static volatile IList<IDbConnectionFactory> _originalConnectionFactories = new List<IDbConnectionFactory>();
 
         public static IList<IDbConnectionFactory> OriginalConnectionFactories
         {
-            get { return _originalConnectionFactorieses; }
+            get { return _originalConnectionFactories; }
         }
 
         static FunctionalTestsConfiguration()
@@ -29,9 +31,13 @@ namespace System.Data.Entity.TestHelpers
                 (s, a) =>
                     {
                         var currentFactory = a.ResolverSnapshot.GetService<IDbConnectionFactory>();
-                        if (currentFactory != OriginalConnectionFactories.LastOrDefault())
+                        if (currentFactory != _originalConnectionFactories.LastOrDefault())
                         {
-                            OriginalConnectionFactories.Add(currentFactory);
+                            var newList = new List<IDbConnectionFactory>(_originalConnectionFactories)
+                                {
+                                    currentFactory
+                                };
+                            _originalConnectionFactories = newList;
                         }
                         a.AddDependencyResolver(
                             new SingletonDependencyResolver<IDbConnectionFactory>(
@@ -56,6 +62,9 @@ namespace System.Data.Entity.TestHelpers
 
         public FunctionalTestsConfiguration()
         {
+            AddDbProviderServices(SqlCeProviderServices.Instance);
+            AddDbProviderServices(SqlProviderServices.Instance);
+
             SetDefaultConnectionFactory(new DefaultUnitTestsConnectionFactory());
             AddDependencyResolver(new SingletonDependencyResolver<IManifestTokenService>(new FunctionalTestsManifestTokenService()));
         }

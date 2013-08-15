@@ -3,7 +3,9 @@
 namespace System.Data.Entity.Migrations
 {
     using System.CodeDom.Compiler;
+    using System.Collections.Generic;
     using System.Data.Entity.Migrations.Design;
+    using System.Data.Entity.Migrations.Infrastructure;
     using System.Data.Entity.SqlServer;
     using System.IO;
     using System.Linq;
@@ -15,8 +17,9 @@ namespace System.Data.Entity.Migrations
     public class ToolingScenarios : DbTestCase, IUseFixture<ToolingFixture>
     {
         private string _projectDir;
+        private string _contextDir;
 
-        [MigrationsTheory]
+        [MigrationsTheory(SlowGroup = TestGroup.MigrationsTests)]
         public void Can_update()
         {
             ResetDatabase();
@@ -25,6 +28,7 @@ namespace System.Data.Entity.Migrations
 
             using (var facade = new ToolingFacade(
                 "ClassLibrary1",
+                "ContextLibrary1",
                 "ClassLibrary1.Configuration",
                 _projectDir,
                 Path.Combine(_projectDir, "App.config"),
@@ -45,7 +49,7 @@ namespace System.Data.Entity.Migrations
             Assert.True(TableExists("Entities"));
         }
 
-        [MigrationsTheory]
+        [MigrationsTheory(SlowGroup = TestGroup.MigrationsTests)]
         public void Can_script_update()
         {
             ResetDatabase();
@@ -55,6 +59,7 @@ namespace System.Data.Entity.Migrations
 
             using (var facade = new ToolingFacade(
                 "ClassLibrary1",
+                "ContextLibrary1",
                 "ClassLibrary1.Configuration",
                 _projectDir,
                 Path.Combine(_projectDir, "App.config"),
@@ -79,16 +84,17 @@ namespace System.Data.Entity.Migrations
 
             using (var facade = new ToolingFacade(
                 "ClassLibrary1",
+                "ContextLibrary1",
                 configurationTypeName: null,
-                workingDirectory: _projectDir,
+                workingDirectory: _contextDir,
                 configurationFilePath: null,
                 dataDirectory: null,
                 connectionStringInfo: null))
             {
                 var result = facade.GetContextTypes();
 
-                Assert.Equal(2, result.Count());
-                Assert.Equal("ClassLibrary1.Context", result.First());
+                Assert.Equal(1, result.Count());
+                Assert.Equal("ContextLibrary1.Context", result.First());
             }
         }
 
@@ -99,15 +105,16 @@ namespace System.Data.Entity.Migrations
 
             using (var facade = new ToolingFacade(
                 "ClassLibrary1",
+                "ContextLibrary1",
                 configurationTypeName: null,
-                workingDirectory: _projectDir,
+                workingDirectory: _contextDir,
                 configurationFilePath: null,
                 dataDirectory: null,
                 connectionStringInfo: null))
             {
                 var result = facade.GetContextType(null);
 
-                Assert.Equal("ClassLibrary1.Context", result);
+                Assert.Equal("ContextLibrary1.Context", result);
             }
         }
 
@@ -118,15 +125,16 @@ namespace System.Data.Entity.Migrations
 
             using (var facade = new ToolingFacade(
                 "ClassLibrary1",
+                "ContextLibrary1",
                 configurationTypeName: null,
-                workingDirectory: _projectDir,
+                workingDirectory: _contextDir,
                 configurationFilePath: null,
                 dataDirectory: null,
                 connectionStringInfo: null))
             {
                 var result = facade.GetContextType("Context");
 
-                Assert.Equal("ClassLibrary1.Context", result);
+                Assert.Equal("ContextLibrary1.Context", result);
             }
         }
 
@@ -137,15 +145,16 @@ namespace System.Data.Entity.Migrations
 
             using (var facade = new ToolingFacade(
                 "ClassLibrary1",
+                "ContextLibrary1",
                 configurationTypeName: null,
-                workingDirectory: _projectDir,
+                workingDirectory: _contextDir,
                 configurationFilePath: null,
                 dataDirectory: null,
                 connectionStringInfo: null))
             {
-                var result = facade.GetContextType("ClassLibrary1.Context");
+                var result = facade.GetContextType("ContextLibrary1.Context");
 
-                Assert.Equal("ClassLibrary1.Context", result);
+                Assert.Equal("ContextLibrary1.Context", result);
             }
         }
 
@@ -156,31 +165,33 @@ namespace System.Data.Entity.Migrations
 
             using (var facade = new ToolingFacade(
                 "ClassLibrary1",
+                "ContextLibrary1",
                 configurationTypeName: null,
-                workingDirectory: _projectDir,
+                workingDirectory: _contextDir,
                 configurationFilePath: null,
                 dataDirectory: null,
                 connectionStringInfo: null))
             {
-                Assert.Throws<ToolingException>(() => facade.GetContextType("MissingContext"));
+                Assert.Throws<MigrationsException>(() => facade.GetContextType("MissingContext"));
             }
         }
 
-        [MigrationsTheory]
+        [MigrationsTheory(SlowGroup = TestGroup.MigrationsTests)]
         public void Can_scaffold_initial_create()
         {
             ResetDatabase();
 
-            var migrator = CreateMigrator<ShopContext_v1>();
+            var migrator = CreateMigrator<ShopContext_v2>();
 
             var initialCreate = new MigrationScaffolder(migrator.Configuration).Scaffold("InitialCreate");
 
-            migrator = CreateMigrator<ShopContext_v1>(scaffoldedMigrations: initialCreate, contextKey: "ClassLibrary1.Context");
+            migrator = CreateMigrator<ShopContext_v2>(scaffoldedMigrations: initialCreate, contextKey: "ContextLibrary1.Context");
 
             migrator.Update();
 
             using (var facade = new ToolingFacade(
                 "ClassLibrary1",
+                "ContextLibrary1",
                 "ClassLibrary1.Configuration",
                 _projectDir,
                 Path.Combine(_projectDir, "App.config"),
@@ -196,11 +207,12 @@ namespace System.Data.Entity.Migrations
             }
         }
 
-        [MigrationsTheory]
+        [MigrationsTheory(SlowGroup = TestGroup.MigrationsTests)]
         public void Can_scaffold_empty()
         {
             using (var facade = new ToolingFacade(
                 "ClassLibrary1",
+                "ContextLibrary1",
                 "ClassLibrary1.Configuration",
                 _projectDir,
                 Path.Combine(_projectDir, "App.config"),
@@ -223,6 +235,7 @@ namespace System.Data.Entity.Migrations
 
             using (var facade = new ToolingFacade(
                 "ClassLibrary1",
+                "ContextLibrary1",
                 "ClassLibrary1.Configuration",
                 _projectDir,
                 Path.Combine(_projectDir, "App.config"),
@@ -238,13 +251,14 @@ namespace System.Data.Entity.Migrations
             }
         }
 
-        [MigrationsTheory]
+        [MigrationsTheory(SlowGroup = TestGroup.MigrationsTests)]
         public void Can_scaffold_vb()
         {
             ResetDatabase();
 
             using (var facade = new ToolingFacade(
                 "ClassLibrary1",
+                "ContextLibrary1",
                 "ClassLibrary1.Configuration",
                 _projectDir,
                 Path.Combine(_projectDir, "App.config"),
@@ -267,68 +281,67 @@ namespace System.Data.Entity.Migrations
 
             using (var facade = new ToolingFacade(
                 unknownAssemblyName,
+                unknownAssemblyName,
                 "ClassLibrary1.Configuration",
                 _projectDir,
                 Path.Combine(_projectDir, "App.config"),
                 null,
                 null))
             {
-                Assert.Throws<ToolingException>(() => facade.GetDatabaseMigrations())
-                    .ValidateMessage("ToolingFacade_AssemblyNotFound", unknownAssemblyName);
+                Assert.Throws<MigrationsException>(() => facade.GetDatabaseMigrations())
+                      .ValidateMessage("ToolingFacade_AssemblyNotFound", unknownAssemblyName);
             }
         }
 
         public void SetFixture(ToolingFixture data)
         {
             _projectDir = data.ProjectDir;
+            _contextDir = data.ContextDir;
         }
     }
 
     public class ToolingFixture : IDisposable
     {
         public string ProjectDir { get; private set; }
+        public string ContextDir { get; private set; }
 
         public ToolingFixture()
         {
+            var contextDir = IOHelpers.GetTempDirName();
+            CreateContextProject(contextDir);
+
             var targetDir = IOHelpers.GetTempDirName();
-            const string targetName = "ClassLibrary1";
-            const string targetFileName = targetName + ".dll";
-            var targetPath = Path.Combine(targetDir, targetFileName);
+            CreateMigrationsProject(targetDir, contextDir);
+            AddAppConfig(targetDir);
 
-            var entityFrameworkPath = new Uri(typeof(DbContext).Assembly.CodeBase).LocalPath;
-            IOHelpers.CopyToDir(entityFrameworkPath, targetDir);
-
-            var entityFrameworkSqlServerPath = new Uri(typeof(SqlProviderServices).Assembly.CodeBase).LocalPath;
-            IOHelpers.CopyToDir(entityFrameworkSqlServerPath, targetDir);
-
-            using (var compiler = new CSharpCodeProvider())
-            {
-                var results
-                    = compiler.CompileAssemblyFromSource(
-                        new CompilerParameters(
-                            new[]
-                                {
-                                    "System.dll",
-                                    "System.Data.dll",
-                                    "System.Core.dll",
-                                    "System.Data.Entity.dll",
-                                    entityFrameworkPath
-                                },
-                            targetPath),
-                        @"namespace ClassLibrary1
-{
-    using System.Data.Common;
-    using System.Data.Entity;
-    using System.Data.Entity.Migrations;
-    using System.Data.Entity.Migrations.History;
-
-    public class Configuration : DbMigrationsConfiguration<Context>
-    {
-        public Configuration()
-        {
-            AutomaticMigrationsEnabled = true;
+            ProjectDir = targetDir;
+            ContextDir = contextDir;
         }
-    }
+
+        private static void AddAppConfig(string targetDir)
+        {
+            var configurationFile = Path.Combine(targetDir, "App.config");
+
+            File.WriteAllText(
+                configurationFile,
+                @"<?xml version='1.0' encoding='utf-8' ?>
+<configuration>
+  <connectionStrings>
+    <add name='ClassLibrary1' connectionString='" +
+                DatabaseProviderFixture.InitializeTestDatabase(DatabaseProvider.SqlClient, DatabaseProviderFixture.DefaultDatabaseName).
+                                        ConnectionString +
+                @"' providerName='System.Data.SqlClient' />
+  </connectionStrings>
+</configuration>");
+        }
+
+        private static void CreateContextProject(string targetDir)
+        {
+            CreateProject(
+                targetDir, "ContextLibrary1", new List<string>(),
+                @"namespace ContextLibrary1
+{
+    using System.Data.Entity;
 
     public class Context : DbContext
     {
@@ -340,42 +353,76 @@ namespace System.Data.Entity.Migrations
         public DbSet<Entity> Entities { get; set; }
     }
 
-    public class CustomHistoryContext : HistoryContext
-    {
-        public CustomHistoryContext(DbConnection existingConnection, bool contextOwnsConnection, string defaultSchema)
-            : base(existingConnection, contextOwnsConnection, defaultSchema)
-        {
-        }
-    }
-
     public class Entity
     {
         public int Id { get; set; }
         public string Name { get; set; }
     }
 }");
+        }
+
+        private static void CreateMigrationsProject(string targetDir, string contextDir)
+        {
+            var contextPath = Path.Combine(contextDir, "ContextLibrary1.dll");
+            IOHelpers.CopyToDir(contextPath, targetDir);
+
+            CreateProject(
+                targetDir, "ClassLibrary1", new List<string> { contextPath },
+                @"namespace ClassLibrary1
+{
+    using System.Data.Common;
+    using System.Data.Entity;
+    using System.Data.Entity.Migrations;
+    using System.Data.Entity.Migrations.History;
+
+    public class Configuration : DbMigrationsConfiguration<ContextLibrary1.Context>
+    {
+        public Configuration()
+        {
+            AutomaticMigrationsEnabled = true;
+        }
+    }
+
+    public class CustomHistoryContext : HistoryContext
+    {
+        public CustomHistoryContext(DbConnection existingConnection, string defaultSchema)
+            : base(existingConnection, defaultSchema)
+        {
+        }
+    }
+}");
+        }
+
+        private static void CreateProject(string targetDir, string targetName, List<string> additionalAssemblies, string code)
+        {
+            var targetFileName = targetName + ".dll";
+            var targetPath = Path.Combine(targetDir, targetFileName);
+
+            var entityFrameworkPath = new Uri(typeof(DbContext).Assembly.CodeBase).LocalPath;
+            IOHelpers.CopyToDir(entityFrameworkPath, targetDir);
+
+            var entityFrameworkSqlServerPath = new Uri(typeof(SqlProviderServices).Assembly.CodeBase).LocalPath;
+            IOHelpers.CopyToDir(entityFrameworkSqlServerPath, targetDir);
+
+            using (var compiler = new CSharpCodeProvider())
+            {
+                additionalAssemblies.AddRange(
+                    new List<string>
+                        {
+                            "System.dll",
+                            "System.Data.dll",
+                            "System.Core.dll",
+                            "System.Data.Entity.dll",
+                            entityFrameworkPath
+                        });
+
+                var results = compiler.CompileAssemblyFromSource(new CompilerParameters(additionalAssemblies.ToArray(), targetPath), code);
 
                 if (results.Errors.HasErrors)
                 {
                     throw new InvalidOperationException(results.Errors.Cast<CompilerError>().First(e => !e.IsWarning).ToString());
                 }
             }
-
-            var configurationFile = Path.Combine(targetDir, "App.config");
-
-            File.WriteAllText(
-                configurationFile,
-                @"<?xml version='1.0' encoding='utf-8' ?>
-<configuration>
-  <connectionStrings>
-    <add name='ClassLibrary1' connectionString='" +
-                DatabaseProviderFixture.InitializeTestDatabase(DatabaseProvider.SqlClient, DatabaseProviderFixture.DefaultDatabaseName).
-                    ConnectionString +
-                @"' providerName='System.Data.SqlClient' />
-  </connectionStrings>
-</configuration>");
-
-            ProjectDir = targetDir;
         }
 
         public void Dispose()
@@ -384,6 +431,12 @@ namespace System.Data.Entity.Migrations
                 && Directory.Exists(ProjectDir))
             {
                 Directory.Delete(ProjectDir, true);
+            }
+
+            if (ContextDir != null
+                && Directory.Exists(ContextDir))
+            {
+                Directory.Delete(ContextDir, true);
             }
         }
     }

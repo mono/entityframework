@@ -65,6 +65,63 @@ namespace System.Data.Entity.Internal
             return true;
         }
 
+        /// <summary>
+        ///     Given two property values this method determines whether the scalar property values are equal
+        ///     and whether the complex property values are the same.
+        /// </summary>
+        public static bool PropertyValuesEqual(object x, object y)
+        {
+            if (x is DBNull)
+            {
+                x = null;
+            }
+
+            if (y is DBNull)
+            {
+                y = null;
+            }
+
+            if (x == null)
+            {
+                return y == null;
+            }
+
+            if (x.GetType().IsValueType
+                && Equals(x, y))
+            {
+                return true;
+            }
+
+            var xString = x as string;
+            if (xString != null)
+            {
+                return xString.Equals(y as string, StringComparison.Ordinal);
+            }
+
+            var xBytes = x as byte[];
+            if (xBytes == null)
+            {
+                return ReferenceEquals(x, y);
+            }
+
+            var yBytes = y as byte[];
+            if (yBytes == null
+                || xBytes.Length != yBytes.Length)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < xBytes.Length; i++)
+            {
+                if (xBytes[i] != yBytes[i])
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
         #endregion
 
         #region Identifier quoting
@@ -306,7 +363,7 @@ namespace System.Data.Entity.Internal
             {
                 var properties = type.GetProperties(PropertyBindingFlags).Where(p => p.GetIndexParameters().Length == 0);
                 setters = new Dictionary<string, Action<object, object>>(properties.Count());
-                foreach (var property in properties)
+                foreach (var property in properties.Select(p => p.GetPropertyInfoForSet()))
                 {
                     // Only create delegates for properties that are found and have a setter.
                     var setMethod = property.GetSetMethod(nonPublic: true);

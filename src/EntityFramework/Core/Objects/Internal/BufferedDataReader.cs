@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
+// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 namespace System.Data.Entity.Core.Objects.Internal
 {
@@ -13,13 +13,14 @@ namespace System.Data.Entity.Core.Objects.Internal
     using System.Diagnostics.CodeAnalysis;
     using System.Threading;
     using System.Threading.Tasks;
+
 #if !NET40
 
 #endif
 
     /// <summary>
-    ///     A wrapper over a <see cref="DbDataReader"/> that will consume and close the supplied reader
-    ///     when <see cref="Initialize"/> is called.
+    ///     A wrapper over a <see cref="DbDataReader" /> that will consume and close the supplied reader
+    ///     when <see cref="Initialize" /> is called.
     /// </summary>
     internal class BufferedDataReader : DbDataReader
     {
@@ -232,12 +233,14 @@ namespace System.Data.Entity.Core.Objects.Internal
                             {
                                 row[i] = DBNull.Value;
                             }
-                            else if (metadata.HasSpatialColumns && metadata.GeographyColumns[i])
+                            else if (metadata.HasSpatialColumns
+                                     && metadata.GeographyColumns[i])
                             {
                                 row[i] = await metadata.SpatialDataReader.GetGeographyAsync(i, cancellationToken)
                                                        .ConfigureAwait(continueOnCapturedContext: false);
                             }
-                            else if (metadata.HasSpatialColumns && metadata.GeometryColumns[i])
+                            else if (metadata.HasSpatialColumns
+                                     && metadata.GeometryColumns[i])
                             {
                                 row[i] = await metadata.SpatialDataReader.GetGeometryAsync(i, cancellationToken)
                                                        .ConfigureAwait(continueOnCapturedContext: false);

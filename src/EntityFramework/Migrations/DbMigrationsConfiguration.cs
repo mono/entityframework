@@ -11,6 +11,7 @@ namespace System.Data.Entity.Migrations
     using System.Data.Entity.Migrations.Sql;
     using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
+    using System.IO;
     using System.Reflection;
 
     /// <summary>
@@ -33,8 +34,9 @@ namespace System.Data.Entity.Migrations
         private DbConnectionInfo _connectionInfo;
         private string _migrationsDirectory = DefaultMigrationsDirectory;
         private readonly Lazy<IDbDependencyResolver> _resolver;
-        private IHistoryContextFactory _historyContextFactory;
+        private HistoryContextFactory _historyContextFactory;
         private string _contextKey;
+        private int? _commandTimeout;
 
         /// <summary>
         ///     Initializes a new instance of the DbMigrationsConfiguration class.
@@ -56,6 +58,11 @@ namespace System.Data.Entity.Migrations
         /// </summary>
         public bool AutomaticMigrationsEnabled { get; set; }
 
+        /// <summary>
+        ///     Gets or sets the string used to distinguish migrations belonging to this configuration 
+        ///     from migrations belonging to other configurations using the same database.
+        ///     This property enables migrations from multiple different models to be applied to applied to a single database.
+        /// </remarks>
         public string ContextKey
         {
             get { return _contextKey; }
@@ -137,8 +144,12 @@ namespace System.Data.Entity.Migrations
         /// </summary>
         public string MigrationsNamespace { get; set; }
 
+        // Allowed to be null
+
         /// <summary>
         ///     Gets or sets the sub-directory that code-based migrations are stored in.
+        ///     Note that this property must be set to a relative path for a sub-directory under the
+        ///     Visual Studio project root; it cannot be set to an absolute path.
         /// </summary>
         public string MigrationsDirectory
         {
@@ -146,6 +157,11 @@ namespace System.Data.Entity.Migrations
             set
             {
                 Check.NotEmpty(value, "value");
+
+                if (Path.IsPathRooted(value))
+                {
+                    throw new MigrationsException(Strings.DbMigrationsConfiguration_RootedPath(value));
+                }
 
                 _migrationsDirectory = value;
             }
@@ -165,15 +181,22 @@ namespace System.Data.Entity.Migrations
             }
         }
 
-        public IHistoryContextFactory HistoryContextFactory
+        /// <summary>
+        ///     Gets or sets the factory used to create <see cref="HistoryContext"/> instances for this configuration.
+        ///     <see cref="HistoryContext"/> is used to customize the migrations history table definition. 
+        ///     
+        ///     If <c>null</c> is provided, the history context registered with <see cref="System.Data.Entity.Config.DbConfiguration"/>
+        ///     will be used (by default this is <see cref="HistoryContext"/>).
+        /// </summary>
+        public HistoryContextFactory HistoryContextFactory
         {
             get
             {
                 return _historyContextFactory
-                       ?? _resolver.Value.GetService<IHistoryContextFactory>(GetType())
-                       ?? _resolver.Value.GetService<IHistoryContextFactory>();
+                       ?? _resolver.Value.GetService<HistoryContextFactory>(GetType())
+                       ?? _resolver.Value.GetService<HistoryContextFactory>();
             }
-            set { _historyContextFactory = value; }
+            set { _historyContextFactory = value; } // Allowed to be null
         }
 
         /// <summary>
@@ -209,7 +232,20 @@ namespace System.Data.Entity.Migrations
         ///     migration. A null value indicates that the default value of the underlying
         ///     provider will be used.
         /// </summary>
-        public int? CommandTimeout { get; set; }
+        public int? CommandTimeout
+        {
+            get { return _commandTimeout; }
+            set
+            {
+                if (value.HasValue
+                    && value < 0)
+                {
+                    throw new ArgumentException(Strings.ObjectContext_InvalidCommandTimeout);
+                }
+
+                _commandTimeout = value;
+            }
+        }
 
         internal virtual void OnSeed(DbContext context)
         {

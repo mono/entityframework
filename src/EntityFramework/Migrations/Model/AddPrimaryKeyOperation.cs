@@ -19,6 +19,7 @@ namespace System.Data.Entity.Migrations.Model
         public AddPrimaryKeyOperation(object anonymousArguments = null)
             : base(anonymousArguments)
         {
+            IsClustered = true;
         }
 
         /// <summary>
@@ -32,8 +33,7 @@ namespace System.Data.Entity.Migrations.Model
                     = new DropPrimaryKeyOperation
                           {
                               Name = Name,
-                              Table = Table,
-                              IsSystem = IsSystem
+                              Table = Table
                           };
 
                 Columns.Each(c => dropPrimaryKeyOperation.Columns.Add(c));

@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
-namespace System.Data.Entity.ModelConfiguration.Edm.Db.UnitTests
+namespace System.Data.Entity.ModelConfiguration.Edm.Db
 {
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Infrastructure;
@@ -14,7 +14,7 @@ namespace System.Data.Entity.ModelConfiguration.Edm.Db.UnitTests
         {
             var database = new EdmModel(DataSpace.SSpace);
 
-            Assert.Equal(3.0, database.Version);
+            Assert.Equal(XmlConstants.SchemaVersionLatest, database.SchemaVersion);
         }
 
         [Fact]
@@ -51,7 +51,7 @@ namespace System.Data.Entity.ModelConfiguration.Edm.Db.UnitTests
         }
 
         [Fact]
-        public void AddFunction_should_uniquify_namee()
+        public void AddFunction_should_uniquify_name()
         {
             var database = new EdmModel(DataSpace.SSpace);
             database.AddFunction("F", new EdmFunctionPayload());

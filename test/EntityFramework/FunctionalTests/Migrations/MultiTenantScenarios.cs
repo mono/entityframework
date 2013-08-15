@@ -11,6 +11,16 @@ namespace System.Data.Entity.Migrations
     [Variant(DatabaseProvider.SqlClient, ProgrammingLanguage.VB)]
     public class MultiTenantScenarios : DbTestCase
     {
+        public class TenantA
+        {
+            public int Id { get; set; }
+        }
+
+        public class TenantB
+        {
+            public int Id { get; set; }
+        }
+
         public class ContextA : DbContext
         {
             public DbSet<TenantA> As { get; set; }
@@ -115,25 +125,22 @@ namespace System.Data.Entity.Migrations
             Assert.True(TableExists("TenantAs"));
             Assert.True(TableExists("TenantBs"));
         }
-    }
 
-    [Variant(DatabaseProvider.SqlClient, ProgrammingLanguage.CSharp)]
-    [Variant(DatabaseProvider.SqlClient, ProgrammingLanguage.VB)]
-    public class MultitenantScenarios_NoSqlCe : DbTestCase
-    {
         [MigrationsTheory]
+        [Variant(DatabaseProvider.SqlClient, ProgrammingLanguage.CSharp)]
+        [Variant(DatabaseProvider.SqlClient, ProgrammingLanguage.VB)]
         public void Can_update_when_default_schema_introduced()
         {
             ResetDatabase();
 
             var migratorA
-                = CreateMigrator<MultiTenantScenarios.ContextA>(contextKey: "KeyA");
+                = CreateMigrator<ContextA>(contextKey: "KeyA");
 
             var generatedMigrationA1
                 = new MigrationScaffolder(migratorA.Configuration).Scaffold("MigrationA");
 
             migratorA
-                = CreateMigrator<MultiTenantScenarios.ContextA>(
+                = CreateMigrator<ContextA>(
                     contextKey: "KeyA",
                     automaticMigrationsEnabled: false,
                     scaffoldedMigrations: generatedMigrationA1);
@@ -141,16 +148,16 @@ namespace System.Data.Entity.Migrations
             migratorA.Update();
 
             Assert.True(TableExists("dbo.TenantAs"));
-            Assert.True(TableExists("dbo." + HistoryContext.TableName));
+            Assert.True(TableExists("dbo." + HistoryContext.DefaultTableName));
 
             var migratorB
-                = CreateMigrator<MultiTenantScenarios.ContextB>(contextKey: "KeyB");
+                = CreateMigrator<ContextB>(contextKey: "KeyB");
 
             var generatedMigrationB1
                 = new MigrationScaffolder(migratorB.Configuration).Scaffold("MigrationB");
 
             migratorB
-                = CreateMigrator<MultiTenantScenarios.ContextB>(
+                = CreateMigrator<ContextB>(
                     contextKey: "KeyB",
                     automaticMigrationsEnabled: false,
                     scaffoldedMigrations: generatedMigrationB1);
@@ -158,10 +165,10 @@ namespace System.Data.Entity.Migrations
             migratorB.Update();
 
             Assert.True(TableExists("dbo.TenantBs"));
-            Assert.True(TableExists("dbo." + HistoryContext.TableName));
+            Assert.True(TableExists("dbo." + HistoryContext.DefaultTableName));
 
             migratorA
-                = CreateMigrator<MultiTenantScenarios.ContextA2>(
+                = CreateMigrator<ContextA2>(
                     contextKey: "KeyA",
                     scaffoldedMigrations: generatedMigrationA1);
 
@@ -169,7 +176,7 @@ namespace System.Data.Entity.Migrations
                 = new MigrationScaffolder(migratorA.Configuration).Scaffold("MigrationA2");
 
             migratorA
-                = CreateMigrator<MultiTenantScenarios.ContextA2>(
+                = CreateMigrator<ContextA2>(
                     contextKey: "KeyA",
                     automaticMigrationsEnabled: false,
                     scaffoldedMigrations: new[] { generatedMigrationA1, generatedMigrationA2 });
@@ -177,12 +184,12 @@ namespace System.Data.Entity.Migrations
             migratorA.Update();
 
             Assert.True(TableExists("foo.TenantAs"));
-            Assert.True(TableExists("foo." + HistoryContext.TableName));
+            Assert.True(TableExists("foo." + HistoryContext.DefaultTableName));
             Assert.False(TableExists("dbo.TenantAs"));
-            Assert.True(TableExists("dbo." + HistoryContext.TableName));
+            Assert.True(TableExists("dbo." + HistoryContext.DefaultTableName));
 
             migratorB
-                = CreateMigrator<MultiTenantScenarios.ContextB2>(
+                = CreateMigrator<ContextB2>(
                     contextKey: "KeyB",
                     scaffoldedMigrations: generatedMigrationB1);
 
@@ -190,7 +197,7 @@ namespace System.Data.Entity.Migrations
                 = new MigrationScaffolder(migratorB.Configuration).Scaffold("MigrationB2");
 
             migratorB
-                = CreateMigrator<MultiTenantScenarios.ContextB2>(
+                = CreateMigrator<ContextB2>(
                     contextKey: "KeyB",
                     automaticMigrationsEnabled: false,
                     scaffoldedMigrations: new[] { generatedMigrationB1, generatedMigrationB2 });
@@ -198,29 +205,19 @@ namespace System.Data.Entity.Migrations
             migratorB.Update();
 
             Assert.True(TableExists("foo.TenantBs"));
-            Assert.True(TableExists("foo." + HistoryContext.TableName));
+            Assert.True(TableExists("foo." + HistoryContext.DefaultTableName));
             Assert.False(TableExists("dbo.TenantBs"));
-            Assert.False(TableExists("dbo." + HistoryContext.TableName));
+            Assert.False(TableExists("dbo." + HistoryContext.DefaultTableName));
 
             migratorA.Update("0");
 
             Assert.False(TableExists("foo.TenantAs"));
-            Assert.True(TableExists("foo." + HistoryContext.TableName));
+            Assert.True(TableExists("foo." + HistoryContext.DefaultTableName));
 
             migratorB.Update("0");
 
             Assert.False(TableExists("foo.TenantBs"));
-            Assert.False(TableExists("foo." + HistoryContext.TableName));
+            Assert.False(TableExists("foo." + HistoryContext.DefaultTableName));
         }
-    }
-
-    public class TenantA
-    {
-        public int Id { get; set; }
-    }
-
-    public class TenantB
-    {
-        public int Id { get; set; }
     }
 }

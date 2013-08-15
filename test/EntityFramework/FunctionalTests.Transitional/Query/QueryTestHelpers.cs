@@ -2,7 +2,6 @@
 
 namespace System.Data.Entity.Query
 {
-    using Moq;
     using System.Collections.Generic;
     using System.Data.Entity.Core.Common;
     using System.Data.Entity.Core.Common.CommandTrees;
@@ -10,10 +9,12 @@ namespace System.Data.Entity.Query
     using System.Data.Entity.Core.Mapping;
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Infrastructure;
+    using System.Data.SqlClient;
     using System.IO;
     using System.Linq;
     using System.Text.RegularExpressions;
     using System.Xml;
+    using Moq;
     using Xunit;
 
     public static class QueryTestHelpers
@@ -41,7 +42,7 @@ namespace System.Data.Entity.Query
         {
             var providerServices =
                 (DbProviderServices)((IServiceProvider)EntityProviderFactory.Instance).GetService(typeof(DbProviderServices));
-            var connection = new EntityConnection(workspace, new EntityConnection());
+            var connection = new EntityConnection(workspace, new SqlConnection());
             var commandTree = workspace.CreateQueryCommandTree(query);
 
             var entityCommand = (EntityCommand)providerServices.CreateCommandDefinition(commandTree).CreateCommand();
@@ -50,11 +51,11 @@ namespace System.Data.Entity.Query
             Assert.Equal(StripFormatting(expectedSql), StripFormatting(entityCommand.ToTraceString()));
         }
 
-        public static void VerifyQuery(string query, MetadataWorkspace workspace, string expectedSql, params EntityParameter[] entityParameters)
+        private static string GenerateQuery(string query, MetadataWorkspace workspace, params EntityParameter[] entityParameters)
         {
             var entityCommand = new EntityCommand();
             entityCommand.CommandText = query;
-            var connection = new EntityConnection(workspace, new EntityConnection());
+            var connection = new EntityConnection(workspace, new SqlConnection());
             entityCommand.Connection = connection;
             entityCommand.Parameters.AddRange(entityParameters);
             var command = entityCommand.ToTraceString();
@@ -63,9 +64,38 @@ namespace System.Data.Entity.Query
                 entityCommand.Parameters.Remove(entityParameter);
             }
 
+            return command;
+        }
+
+        public static void VerifyQuery(string query, MetadataWorkspace workspace, string expectedSql, params EntityParameter[] entityParameters)
+        {
+            var command = GenerateQuery(query, workspace, entityParameters);
             Assert.Equal(StripFormatting(expectedSql), StripFormatting(command));
         }
 
+        public static void VerifyQueryContains(string query, MetadataWorkspace workspace, string expectedSql, params EntityParameter[] entityParameters)
+        {
+            var command = GenerateQuery(query, workspace, entityParameters);
+            Assert.True(StripFormatting(command).Contains(StripFormatting(expectedSql)));
+        }
+
+        public static EntityDataReader EntityCommandSetup(DbContext db, string query, string expectedSql = null, params EntityParameter[] entityParameters)
+        {
+            var command = new EntityCommand();
+            var objectContext = ((IObjectContextAdapter)db).ObjectContext;
+
+            if (expectedSql != null)
+            {
+                VerifyQueryContains(query, objectContext.MetadataWorkspace, expectedSql, entityParameters);
+            }
+
+            command.Connection = (EntityConnection)objectContext.Connection;
+            command.CommandText = query;
+            command.Parameters.AddRange(entityParameters);
+            command.Connection.Open();
+
+            return command.ExecuteReader(CommandBehavior.SequentialAccess);
+        }
 
         public static void VerifyDbQuery<TElement>(IEnumerable<TElement> query, string expectedSql)
         {
@@ -90,14 +120,20 @@ namespace System.Data.Entity.Query
             }
         }
 
-        public static void VerifyThrows<TException>(string query, MetadataWorkspace workspace, string expectedExeptionMessage)
+
+        public static void VerifyThrows<TException>(string query, MetadataWorkspace workspace, string resourceKey, params string[] exceptionMessageParameters)
+        {
+            VerifyThrows<TException>(query, workspace, resourceKey, s => s, exceptionMessageParameters);
+        }
+        
+        public static void VerifyThrows<TException>(string query, MetadataWorkspace workspace, string resourceKey, Func<string, string> messageModificationFunction, params string[] exceptionMessageParameters)
         {
             var exceptionThrown = false;
             try
             {
                 var providerServices =
                     (DbProviderServices)((IServiceProvider)EntityProviderFactory.Instance).GetService(typeof(DbProviderServices));
-                var connection = new EntityConnection(workspace, new EntityConnection());
+                var connection = new EntityConnection(workspace, new SqlConnection());
                 var commandTree = workspace.CreateEntitySqlParser().Parse(query).CommandTree;
                 var entityCommand = (EntityCommand)providerServices.CreateCommandDefinition(commandTree).CreateCommand();
                 entityCommand.Connection = connection;
@@ -108,7 +144,7 @@ namespace System.Data.Entity.Query
                 exceptionThrown = true;
                 var innermostException = GetInnerMostException(e);
                 Assert.IsType<TException>(innermostException);
-                Assert.Equal(expectedExeptionMessage, innermostException.Message);
+                innermostException.ValidateMessage(typeof(DbContext).Assembly, resourceKey, null, messageModificationFunction, exceptionMessageParameters);
             }
 
             Assert.True(exceptionThrown, "No excepion has been thrown.");

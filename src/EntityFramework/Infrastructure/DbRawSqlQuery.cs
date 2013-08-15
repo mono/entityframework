@@ -94,6 +94,15 @@ namespace System.Data.Entity.Infrastructure
 
 #if !NET40
 
+        /// <summary>
+        ///     Asynchronously enumerates the query results and performs the specified action on each element.
+        /// </summary>
+        /// <remarks>
+        ///     Multiple active operations on the same context instance are not supported.  Use 'await' to ensure
+        ///     that any asynchronous operations have completed before calling another method on this context.
+        /// </remarks>
+        /// <param name="action"> The action to perform on each element. </param>
+        /// <returns> A task that represents the asynchronous operation. </returns>
         public Task ForEachAsync(Action<object> action)
         {
             Check.NotNull(action, "action");
@@ -101,6 +110,18 @@ namespace System.Data.Entity.Infrastructure
             return ((IDbAsyncEnumerable)this).ForEachAsync(action, CancellationToken.None);
         }
 
+        /// <summary>
+        ///     Asynchronously enumerates the query results and performs the specified action on each element.
+        /// </summary>
+        /// <remarks>
+        ///     Multiple active operations on the same context instance are not supported.  Use 'await' to ensure
+        ///     that any asynchronous operations have completed before calling another method on this context.
+        /// </remarks>
+        /// <param name="action"> The action to perform on each element. </param>
+        /// <param name="cancellationToken">
+        ///     A <see cref="CancellationToken" /> to observe while waiting for the task to complete.
+        /// </param>
+        /// <returns> A task that represents the asynchronous operation. </returns>
         public Task ForEachAsync(Action<object> action, CancellationToken cancellationToken)
         {
             Check.NotNull(action, "action");
@@ -108,16 +129,41 @@ namespace System.Data.Entity.Infrastructure
             return ((IDbAsyncEnumerable)this).ForEachAsync(action, cancellationToken);
         }
 
+        /// <summary>
+        ///     Creates a <see cref="List{T}" /> from the query by enumerating it asynchronously.
+        /// </summary>
+        /// <remarks>
+        ///     Multiple active operations on the same context instance are not supported.  Use 'await' to ensure
+        ///     that any asynchronous operations have completed before calling another method on this context.
+        /// </remarks>
+        /// <returns>
+        ///     A task that represents the asynchronous operation.
+        ///     The task result contains a <see cref="List{T}" /> that contains elements from the query.
+        /// </returns>
         [SuppressMessage("Microsoft.Design", "CA1006:DoNotNestGenericTypesInMemberSignatures")]
-        public Task<List<T>> ToListAsync<T>()
+        public Task<List<object>> ToListAsync()
         {
-            return ((IDbAsyncEnumerable)this).ToListAsync<T>();
+            return ((IDbAsyncEnumerable)this).ToListAsync<object>();
         }
 
+        /// <summary>
+        ///     Creates a <see cref="List{T}" /> from the query by enumerating it asynchronously.
+        /// </summary>
+        /// <remarks>
+        ///     Multiple active operations on the same context instance are not supported.  Use 'await' to ensure
+        ///     that any asynchronous operations have completed before calling another method on this context.
+        /// </remarks>
+        /// <param name="cancellationToken">
+        ///     A <see cref="CancellationToken" /> to observe while waiting for the task to complete.
+        /// </param>
+        /// <returns>
+        ///     A task that represents the asynchronous operation.
+        ///     The task result contains a <see cref="List{T}" /> that contains elements from the query.
+        /// </returns>
         [SuppressMessage("Microsoft.Design", "CA1006:DoNotNestGenericTypesInMemberSignatures")]
-        public Task<List<T>> ToListAsync<T>(CancellationToken cancellationToken)
+        public Task<List<object>> ToListAsync(CancellationToken cancellationToken)
         {
-            return ((IDbAsyncEnumerable)this).ToListAsync<T>(cancellationToken);
+            return ((IDbAsyncEnumerable)this).ToListAsync<object>(cancellationToken);
         }
 
 #endif

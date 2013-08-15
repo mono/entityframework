@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
+// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 namespace System.Data.Entity.Core.EntityClient.Internal
 {
@@ -15,15 +15,19 @@ namespace System.Data.Entity.Core.EntityClient.Internal
     using System.Data.Entity.Core.Query.InternalTrees;
     using System.Data.Entity.Core.Query.PlanCompiler;
     using System.Data.Entity.Core.Query.ResultAssembly;
+    using System.Data.Entity.Infrastructure;
+    using System.Data.Entity.Internal;
     using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
     using System.Diagnostics;
     using System.Diagnostics.CodeAnalysis;
     using System.Linq;
     using System.Text;
-#if !NET40
     using System.Threading;
     using System.Threading.Tasks;
+
+#if !NET40
+
 #endif
 
     internal class EntityCommandDefinition : DbCommandDefinition
@@ -54,9 +58,18 @@ namespace System.Data.Entity.Core.EntityClient.Internal
 
         private readonly ColumnMapFactory _columnMapFactory;
 
+        private readonly DbProviderServices _storeProviderServices;
+
         #endregion
 
         #region constructors
+
+        /// <summary>
+        /// For testing.
+        /// </summary>
+        internal EntityCommandDefinition()
+        {
+        }
 
         /// <summary>
         ///     Creates a new instance of <see cref="EntityCommandDefinition" />.
@@ -74,7 +87,7 @@ namespace System.Data.Entity.Core.EntityClient.Internal
             _bridgeDataReaderFactory = bridgeDataReaderFactory ?? new BridgeDataReaderFactory();
             _columnMapFactory = columnMapFactory ?? new ColumnMapFactory();
 
-            var storeProviderServices =
+            _storeProviderServices =
                 (resolver != null
                      ? resolver.GetService<DbProviderServices>(storeProviderFactory.GetProviderInvariantName())
                      : null) ??
@@ -100,7 +113,7 @@ namespace System.Data.Entity.Core.EntityClient.Internal
 
                     foreach (var providerCommandInfo in mappedCommandList)
                     {
-                        var providerCommandDefinition = storeProviderServices.CreateCommandDefinition(providerCommandInfo.CommandTree);
+                        var providerCommandDefinition = _storeProviderServices.CreateCommandDefinition(providerCommandInfo.CommandTree);
 
                         if (null == providerCommandDefinition)
                         {
@@ -140,11 +153,11 @@ namespace System.Data.Entity.Core.EntityClient.Internal
                         entityCommandTree.MetadataWorkspace, DataSpace.SSpace,
                         mapping.TargetFunction, storeResultType, providerParameters);
 
-                    var storeCommandDefinition = storeProviderServices.CreateCommandDefinition(providerCommandTree);
+                    var storeCommandDefinition = _storeProviderServices.CreateCommandDefinition(providerCommandTree);
                     _mappedCommandDefinitions = new List<DbCommandDefinition>(1)
-                                                    {
-                                                        storeCommandDefinition
-                                                    };
+                        {
+                            storeCommandDefinition
+                        };
 
                     var firstResultEntitySet = mapping.FunctionImport.EntitySets.FirstOrDefault();
                     if (firstResultEntitySet != null)
@@ -341,7 +354,7 @@ namespace System.Data.Entity.Core.EntityClient.Internal
         /// <returns> </returns>
         public override DbCommand CreateCommand()
         {
-            return new EntityCommand(this);
+            return new EntityCommand(this, new DbInterceptionContext());
         }
 
         #endregion
@@ -585,6 +598,7 @@ namespace System.Data.Entity.Core.EntityClient.Internal
 
 #endif
 
+        [SuppressMessage("Microsoft.Reliability", "CA2000:Dispose objects before losing scope")]
         private DbCommand PrepareEntityCommandBeforeExecution(EntityCommand entityCommand)
         {
             if (1 != _mappedCommandDefinitions.Count)
@@ -594,7 +608,8 @@ namespace System.Data.Entity.Core.EntityClient.Internal
 
             var entityTransaction = entityCommand.ValidateAndGetEntityTransaction();
             var definition = _mappedCommandDefinitions[0];
-            var storeProviderCommand = definition.CreateCommand();
+
+            var storeProviderCommand = new InterceptableDbCommand(definition.CreateCommand(), entityCommand.InterceptionContext);
 
             CommandHelper.SetStoreProviderCommandState(entityCommand, entityTransaction, storeProviderCommand);
 
@@ -615,8 +630,6 @@ namespace System.Data.Entity.Core.EntityClient.Internal
             // Could be null for some providers, don't remove this check
             if (storeProviderCommand.Parameters != null)
             {
-                var storeProviderServices = entityCommand.Connection.StoreProviderFactory.GetProviderServices();
-
                 foreach (DbParameter storeParameter in storeProviderCommand.Parameters)
                 {
                     // I could just use the string indexer, but then if I didn't find it the
@@ -629,7 +642,10 @@ namespace System.Data.Entity.Core.EntityClient.Internal
                     {
                         var entityParameter = entityCommand.Parameters[parameterOrdinal];
 
-                        SyncParameterProperties(entityParameter, storeParameter, storeProviderServices);
+                        // _storeProviderServices will be null if this object was created via
+                        // the test constructor - but if so we shouldn't be calling this
+                        DebugCheck.NotNull(_storeProviderServices);
+                        SyncParameterProperties(entityParameter, storeParameter, _storeProviderServices);
 
                         if (storeParameter.Direction
                             != ParameterDirection.Input)

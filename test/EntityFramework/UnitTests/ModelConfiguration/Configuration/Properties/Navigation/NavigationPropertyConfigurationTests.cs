@@ -1,9 +1,8 @@
 // Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
-namespace System.Data.Entity.ModelConfiguration.Configuration.UnitTests
+namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigation
 {
     using System.Data.Entity.Core.Metadata.Edm;
-    using System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigation;
     using System.Data.Entity.ModelConfiguration.Configuration.Types;
     using System.Data.Entity.ModelConfiguration.Edm;
     using System.Data.Entity.Resources;
@@ -28,15 +27,16 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.UnitTests
         public void Configure_should_set_configuration_annotations()
         {
             var navigationPropertyConfiguration = new NavigationPropertyConfiguration(new MockPropertyInfo());
-            var navigationProperty = new NavigationProperty("N", TypeUsage.Create(new EntityType()))
+            var navigationProperty = new NavigationProperty("N", TypeUsage.Create(new EntityType("E", "N", DataSpace.CSpace)))
                                          {
-                                             RelationshipType = new AssociationType()
+                                             RelationshipType = new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace)
                                          };
 
-            navigationProperty.Association.SourceEnd = new AssociationEndMember("S", new EntityType());
-            navigationProperty.Association.TargetEnd = new AssociationEndMember("T", new EntityType());
+            navigationProperty.Association.SourceEnd = new AssociationEndMember("S", new EntityType("E", "N", DataSpace.CSpace));
+            navigationProperty.Association.TargetEnd = new AssociationEndMember("T", new EntityType("E", "N", DataSpace.CSpace));
 
-            navigationPropertyConfiguration.Configure(navigationProperty, new EdmModel(DataSpace.CSpace), new EntityTypeConfiguration(typeof(object)));
+            navigationPropertyConfiguration.Configure(
+                navigationProperty, new EdmModel(DataSpace.CSpace), new EntityTypeConfiguration(typeof(object)));
 
             Assert.NotNull(navigationProperty.GetConfiguration());
             Assert.NotNull(navigationProperty.Association.GetConfiguration());
@@ -50,9 +50,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.UnitTests
                                                           RelationshipMultiplicity = RelationshipMultiplicity.ZeroOrOne,
                                                           InverseEndKind = RelationshipMultiplicity.Many
                                                       };
-            var associationType = new AssociationType();
-            associationType.SourceEnd = new AssociationEndMember("S", new EntityType());
-            associationType.TargetEnd = new AssociationEndMember("T", new EntityType());
+            var associationType = new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace);
+            associationType.SourceEnd = new AssociationEndMember("S", new EntityType("E", "N", DataSpace.CSpace));
+            associationType.TargetEnd = new AssociationEndMember("T", new EntityType("E", "N", DataSpace.CSpace));
 
             navigationPropertyConfiguration.Configure(
                 new NavigationProperty("N", TypeUsage.Create(associationType.TargetEnd.GetEntityType()))
@@ -73,12 +73,12 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.UnitTests
                                                       {
                                                           InverseNavigationProperty = inverseMockPropertyInfo
                                                       };
-            var associationType = new AssociationType();
-            associationType.SourceEnd = new AssociationEndMember("S", new EntityType());
-            associationType.TargetEnd = new AssociationEndMember("T", new EntityType());
-            var inverseAssociationType = new AssociationType();
-            inverseAssociationType.SourceEnd = new AssociationEndMember("S", new EntityType());
-            inverseAssociationType.TargetEnd = new AssociationEndMember("T", new EntityType());
+            var associationType = new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace);
+            associationType.SourceEnd = new AssociationEndMember("S", new EntityType("E", "N", DataSpace.CSpace));
+            associationType.TargetEnd = new AssociationEndMember("T", new EntityType("E", "N", DataSpace.CSpace));
+            var inverseAssociationType = new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace);
+            inverseAssociationType.SourceEnd = new AssociationEndMember("S", new EntityType("E", "N", DataSpace.CSpace));
+            inverseAssociationType.TargetEnd = new AssociationEndMember("T", new EntityType("E", "N", DataSpace.CSpace));
             var model = new EdmModel(DataSpace.CSpace);
             model.AddAssociationType(inverseAssociationType);
             var inverseNavigationProperty
@@ -108,9 +108,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.UnitTests
                                                           Constraint =
                                                               new ForeignKeyConstraintConfiguration(new[] { mockPropertyInfo.Object })
                                                       };
-            var associationType = new AssociationType();
-            associationType.SourceEnd = new AssociationEndMember("S", new EntityType());
-            associationType.TargetEnd = new AssociationEndMember("T", new EntityType());
+            var associationType = new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace);
+            associationType.SourceEnd = new AssociationEndMember("S", new EntityType("E", "N", DataSpace.CSpace));
+            associationType.TargetEnd = new AssociationEndMember("T", new EntityType("E", "N", DataSpace.CSpace));
 
             associationType.SourceEnd.GetEntityType().Annotations.SetClrType(mockType);
             associationType.SourceEnd.RelationshipMultiplicity = RelationshipMultiplicity.Many;
@@ -141,9 +141,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.UnitTests
                                                       {
                                                           DeleteAction = OperationAction.Cascade,
                                                       };
-            var associationType = new AssociationType();
-            associationType.SourceEnd = new AssociationEndMember("S", new EntityType());
-            associationType.TargetEnd = new AssociationEndMember("T", new EntityType());
+            var associationType = new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace);
+            associationType.SourceEnd = new AssociationEndMember("S", new EntityType("E", "N", DataSpace.CSpace));
+            associationType.TargetEnd = new AssociationEndMember("T", new EntityType("E", "N", DataSpace.CSpace));
 
             associationType.SourceEnd.GetEntityType().Annotations.SetClrType(mockType);
             associationType.SourceEnd.RelationshipMultiplicity = RelationshipMultiplicity.Many; // make this the principal
@@ -178,27 +178,62 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.UnitTests
                     .Initialize(new EdmModel(DataSpace.CSpace), new EdmModel(DataSpace.SSpace));
 
             var associationSetMapping = databaseMapping.AddAssociationSetMapping(
-                new AssociationSet("AS", new AssociationType()), new EntitySet());
+                new AssociationSet("AS", new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace)), new EntitySet());
 
             var dependentTable = databaseMapping.Database.AddTable("T");
 
             associationSetMapping.StoreEntitySet = databaseMapping.Database.GetEntitySet(dependentTable);
             associationSetMapping.AssociationSet.ElementType.SetConfiguration(navigationPropertyConfiguration);
 
-            associationSetMapping.SourceEndMapping.EndMember = new AssociationEndMember("S", new EntityType());
+            associationSetMapping.SourceEndMapping.EndMember = new AssociationEndMember("S", new EntityType("E", "N", DataSpace.CSpace));
             associationSetMapping.SourceEndMapping.EndMember.SetClrPropertyInfo(mockPropertyInfo);
 
-            navigationPropertyConfiguration.Configure(associationSetMapping, databaseMapping);
+            navigationPropertyConfiguration.Configure(associationSetMapping, databaseMapping, ProviderRegistry.Sql2008_ProviderManifest);
 
             Assert.Equal("Foo", associationSetMapping.Table.GetTableName().Name);
         }
 
         [Fact]
+        public void Configure_should_configure_function_mapping()
+        {
+            var functionsConfiguration = new ModificationFunctionsConfiguration();
+            var functionConfiguration = new ModificationFunctionConfiguration();
+            functionConfiguration.HasName("Func");
+            functionsConfiguration.Insert(functionConfiguration);
+
+            var mockPropertyInfo = new MockPropertyInfo();
+
+            var navigationPropertyConfiguration
+                = new NavigationPropertyConfiguration(mockPropertyInfo)
+                      {
+                          ModificationFunctionsConfiguration = functionsConfiguration
+                      };
+
+            var databaseMapping
+                = new DbDatabaseMapping()
+                    .Initialize(new EdmModel(DataSpace.CSpace), new EdmModel(DataSpace.SSpace));
+
+            var associationSetMapping = databaseMapping.AddAssociationSetMapping(
+                new AssociationSet("AS", new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace)), new EntitySet());
+
+            var dependentTable = databaseMapping.Database.AddTable("T");
+
+            associationSetMapping.StoreEntitySet = databaseMapping.Database.GetEntitySet(dependentTable);
+            associationSetMapping.AssociationSet.ElementType.SetConfiguration(navigationPropertyConfiguration);
+            associationSetMapping.SourceEndMapping.EndMember = new AssociationEndMember("S", new EntityType("E", "N", DataSpace.CSpace));
+            associationSetMapping.SourceEndMapping.EndMember.SetClrPropertyInfo(mockPropertyInfo);
+
+            navigationPropertyConfiguration.Configure(associationSetMapping, databaseMapping, ProviderRegistry.Sql2008_ProviderManifest);
+
+            Assert.Equal("Func", associationSetMapping.ModificationFunctionMapping.InsertFunctionMapping.Function.Name);
+        }
+
+        [Fact]
         public void Configure_should_validate_consistency_of_end_kind_when_already_configured()
         {
-            var associationType = new AssociationType();
-            associationType.SourceEnd = new AssociationEndMember("S", new EntityType());
-            associationType.TargetEnd = new AssociationEndMember("T", new EntityType());
+            var associationType = new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace);
+            associationType.SourceEnd = new AssociationEndMember("S", new EntityType("E", "N", DataSpace.CSpace));
+            associationType.TargetEnd = new AssociationEndMember("T", new EntityType("E", "N", DataSpace.CSpace));
             var navigationPropertyConfigurationA
                 = new NavigationPropertyConfiguration(new MockPropertyInfo())
                       {
@@ -225,9 +260,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.UnitTests
         [Fact]
         public void Configure_should_validate_consistency_of_inverse_end_kind_when_already_configured()
         {
-            var associationType = new AssociationType();
-            associationType.SourceEnd = new AssociationEndMember("S", new EntityType());
-            associationType.TargetEnd = new AssociationEndMember("T", new EntityType());
+            var associationType = new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace);
+            associationType.SourceEnd = new AssociationEndMember("S", new EntityType("E", "N", DataSpace.CSpace));
+            associationType.TargetEnd = new AssociationEndMember("T", new EntityType("E", "N", DataSpace.CSpace));
             var mockPropertyInfo = new MockPropertyInfo();
             var navigationPropertyConfigurationA
                 = new NavigationPropertyConfiguration(mockPropertyInfo)
@@ -256,9 +291,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.UnitTests
         [Fact]
         public void Configure_should_validate_consistency_of_delete_action_when_already_configured()
         {
-            var associationType = new AssociationType();
-            associationType.SourceEnd = new AssociationEndMember("S", new EntityType());
-            associationType.TargetEnd = new AssociationEndMember("T", new EntityType());
+            var associationType = new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace);
+            associationType.SourceEnd = new AssociationEndMember("S", new EntityType("E", "N", DataSpace.CSpace));
+            associationType.TargetEnd = new AssociationEndMember("T", new EntityType("E", "N", DataSpace.CSpace));
             var navigationPropertyConfigurationA
                 = new NavigationPropertyConfiguration(new MockPropertyInfo())
                       {
@@ -285,9 +320,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.UnitTests
         [Fact]
         public void Configure_should_validate_consistency_of_constraint_when_already_configured()
         {
-            var associationType = new AssociationType();
-            associationType.SourceEnd = new AssociationEndMember("S", new EntityType());
-            associationType.TargetEnd = new AssociationEndMember("T", new EntityType());
+            var associationType = new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace);
+            associationType.SourceEnd = new AssociationEndMember("S", new EntityType("E", "N", DataSpace.CSpace));
+            associationType.TargetEnd = new AssociationEndMember("T", new EntityType("E", "N", DataSpace.CSpace));
             var navigationPropertyConfigurationA
                 = new NavigationPropertyConfiguration(new MockPropertyInfo())
                       {
@@ -322,9 +357,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.UnitTests
         [Fact]
         public void Configure_should_validate_consistency_of_mapping_when_already_configured()
         {
-            var associationType = new AssociationType();
-            associationType.SourceEnd = new AssociationEndMember("S", new EntityType());
-            associationType.TargetEnd = new AssociationEndMember("T", new EntityType());
+            var associationType = new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace);
+            associationType.SourceEnd = new AssociationEndMember("S", new EntityType("E", "N", DataSpace.CSpace));
+            associationType.TargetEnd = new AssociationEndMember("T", new EntityType("E", "N", DataSpace.CSpace));
             var manyToManyAssociationMappingConfiguration1 = new ManyToManyAssociationMappingConfiguration();
             manyToManyAssociationMappingConfiguration1.ToTable("A");
             var navigationPropertyConfigurationA
@@ -353,11 +388,56 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.UnitTests
         }
 
         [Fact]
+        public void Configure_should_validate_consistency_of_function_configuration_when_already_configured()
+        {
+            var associationType = new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace);
+            associationType.SourceEnd = new AssociationEndMember("S", new EntityType("E", "N", DataSpace.CSpace));
+            associationType.TargetEnd = new AssociationEndMember("T", new EntityType("E", "N", DataSpace.CSpace));
+
+            var functionConfiguration1 = new ModificationFunctionConfiguration();
+            functionConfiguration1.HasName("Foo");
+
+            var functionConfiguration2 = new ModificationFunctionConfiguration();
+            functionConfiguration2.HasName("Bar");
+
+            var functionsConfiguration1 = new ModificationFunctionsConfiguration();
+
+            functionsConfiguration1.Insert(functionConfiguration1);
+
+            var functionsConfiguration2 = new ModificationFunctionsConfiguration();
+
+            functionsConfiguration2.Insert(functionConfiguration2);
+
+            var navigationPropertyConfigurationA
+                = new NavigationPropertyConfiguration(new MockPropertyInfo())
+                      {
+                          ModificationFunctionsConfiguration = functionsConfiguration1
+                      };
+
+            associationType.SetConfiguration(navigationPropertyConfigurationA);
+
+            var navigationPropertyConfigurationB
+                = new NavigationPropertyConfiguration(new MockPropertyInfo())
+                      {
+                          ModificationFunctionsConfiguration = functionsConfiguration2
+                      };
+
+            Assert.Equal(
+                Strings.ConflictingFunctionsMapping("P", typeof(object)),
+                Assert.Throws<InvalidOperationException>(
+                    () => navigationPropertyConfigurationB.Configure(
+                        new NavigationProperty("N", TypeUsage.Create(associationType.TargetEnd.GetEntityType()))
+                            {
+                                RelationshipType = associationType
+                            }, new EdmModel(DataSpace.CSpace), new EntityTypeConfiguration(typeof(object)))).Message);
+        }
+
+        [Fact]
         public void Configure_should_not_validate_consistency_of_dependent_end_when_both_false()
         {
-            var associationType = new AssociationType();
-            associationType.SourceEnd = new AssociationEndMember("S", new EntityType());
-            associationType.TargetEnd = new AssociationEndMember("T", new EntityType());
+            var associationType = new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace);
+            associationType.SourceEnd = new AssociationEndMember("S", new EntityType("E", "N", DataSpace.CSpace));
+            associationType.TargetEnd = new AssociationEndMember("T", new EntityType("E", "N", DataSpace.CSpace));
             var navigationPropertyConfigurationA
                 = new NavigationPropertyConfiguration(new MockPropertyInfo());
             associationType.SetConfiguration(navigationPropertyConfigurationA);

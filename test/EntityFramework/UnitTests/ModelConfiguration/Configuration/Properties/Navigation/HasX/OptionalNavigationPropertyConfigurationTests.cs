@@ -1,10 +1,9 @@
 // Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
-namespace System.Data.Entity.ModelConfiguration.Configuration.UnitTests
+namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigation
 {
     using System.Collections.Generic;
     using System.Data.Entity.Core.Metadata.Edm;
-    using System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigation;
     using Xunit;
 
     public sealed class OptionalNavigationPropertyConfigurationTests
@@ -99,8 +98,6 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.UnitTests
             Assert.Equal(RelationshipMultiplicity.ZeroOrOne, associationConfiguration.InverseEndKind);
         }
 
-        #region Test Fixtures
-
         private class S
         {
         }
@@ -110,7 +107,5 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.UnitTests
             public ICollection<S> Ss { get; set; }
             public S S { get; set; }
         }
-
-        #endregion
     }
 }

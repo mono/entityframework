@@ -11,7 +11,7 @@ namespace System.Data.Entity.Core.Mapping
     /// <summary>
     ///     Mapping metadata for Complex Types.
     /// </summary>
-    internal class StorageComplexTypeMapping : IStructuralTypeMapping
+    internal class StorageComplexTypeMapping : StructuralTypeMapping
     {
         private readonly Dictionary<string, StoragePropertyMapping> m_properties =
             new Dictionary<string, StoragePropertyMapping>(StringComparer.Ordinal);
@@ -68,7 +68,7 @@ namespace System.Data.Entity.Core.Mapping
         /// <summary>
         ///     List of child properties that make up this complex property
         /// </summary>
-        public ReadOnlyCollection<StoragePropertyMapping> Properties
+        public override ReadOnlyCollection<StoragePropertyMapping> Properties
         {
             get { return new List<StoragePropertyMapping>(m_properties.Values).AsReadOnly(); }
         }
@@ -107,13 +107,13 @@ namespace System.Data.Entity.Core.Mapping
         /// <summary>
         ///     Add a property mapping as a child of this complex property mapping
         /// </summary>
-        /// <param name="prop"> The mapping that needs to be added </param>
-        public void AddProperty(StoragePropertyMapping prop)
+        /// <param name="propertyMapping"> The mapping that needs to be added </param>
+        internal override void AddProperty(StoragePropertyMapping propertyMapping)
         {
-            m_properties.Add(prop.EdmProperty.Name, prop);
+            m_properties.Add(propertyMapping.EdmProperty.Name, propertyMapping);
         }
 
-        public void RemoveProperty(StoragePropertyMapping prop)
+        internal override void RemoveProperty(StoragePropertyMapping prop)
         {
             m_properties.Remove(prop.EdmProperty.Name);
         }

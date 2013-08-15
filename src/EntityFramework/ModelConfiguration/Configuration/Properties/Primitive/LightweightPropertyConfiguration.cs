@@ -39,7 +39,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
         ///     The <see cref="PropertyInfo" /> for this property
         /// </param>
         /// <param name="configuration"> The configuration object that this instance wraps. </param>
-        public LightweightPropertyConfiguration(PropertyInfo propertyInfo, Func<PrimitivePropertyConfiguration> configuration)
+        internal LightweightPropertyConfiguration(PropertyInfo propertyInfo, Func<PrimitivePropertyConfiguration> configuration)
         {
             Check.NotNull(propertyInfo, "propertyInfo");
             Check.NotNull(configuration, "configuration");
@@ -86,6 +86,16 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
             if (_configuration().ColumnName == null)
             {
                 _configuration().ColumnName = columnName;
+            }
+
+            return this;
+        }
+
+        public virtual LightweightPropertyConfiguration HasParameterName(string parameterName)
+        {
+            if (_configuration().ParameterName == null)
+            {
+                _configuration().ParameterName = parameterName;
             }
 
             return this;
@@ -323,7 +333,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
         /// <summary>
         ///     Configures the property to have the specified maximum length.
         /// </summary>
-        /// <param name="value"> The maximum length for the property. Setting 'null' will remove any maximum length restriction from the property and a default length will be used for the database column. </param>
+        /// <param name="value"> The maximum length for the property. </param>
         /// <returns>
         ///     The same <see cref="LightweightPropertyConfiguration" /> instance so that multiple calls can be chained.
         /// </returns>

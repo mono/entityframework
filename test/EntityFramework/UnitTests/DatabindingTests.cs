@@ -1,12 +1,11 @@
 ﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
-namespace ProductivityApiUnitTests
+namespace System.Data.Entity
 {
     using System;
     using System.Collections.Generic;
     using System.Collections.ObjectModel;
     using System.ComponentModel;
-    using System.Data.Entity;
     using System.Data.Entity.Infrastructure;
     using System.Data.Entity.Internal;
     using System.Data.Entity.Internal.Linq;
@@ -1030,7 +1029,7 @@ namespace ProductivityApiUnitTests
         [Fact]
         public void Load_throws_when_given_null_query()
         {
-            Assert.Equal("source", Assert.Throws<ArgumentNullException>(() => IQueryableExtensions.Load(null)).ParamName);
+            Assert.Equal("source", Assert.Throws<ArgumentNullException>(() => QueryableExtensions.Load(null)).ParamName);
         }
 
         [Fact]

@@ -40,21 +40,21 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             return new ModificationFunctionsConfiguration(this);
         }
 
-        public virtual void InsertFunction(ModificationFunctionConfiguration modificationFunctionConfiguration)
+        public virtual void Insert(ModificationFunctionConfiguration modificationFunctionConfiguration)
         {
             DebugCheck.NotNull(modificationFunctionConfiguration);
 
             _insertModificationFunctionConfiguration = modificationFunctionConfiguration;
         }
 
-        public virtual void UpdateFunction(ModificationFunctionConfiguration modificationFunctionConfiguration)
+        public virtual void Update(ModificationFunctionConfiguration modificationFunctionConfiguration)
         {
             DebugCheck.NotNull(modificationFunctionConfiguration);
 
             _updateModificationFunctionConfiguration = modificationFunctionConfiguration;
         }
 
-        public virtual void DeleteFunction(ModificationFunctionConfiguration modificationFunctionConfiguration)
+        public virtual void Delete(ModificationFunctionConfiguration modificationFunctionConfiguration)
         {
             DebugCheck.NotNull(modificationFunctionConfiguration);
 
@@ -97,6 +97,44 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
                 _deleteModificationFunctionConfiguration
                     .Configure(modificationFunctionMapping.DeleteFunctionMapping);
             }
+        }
+
+        public void Configure(StorageAssociationSetModificationFunctionMapping modificationFunctionMapping)
+        {
+            DebugCheck.NotNull(modificationFunctionMapping);
+
+            if (_insertModificationFunctionConfiguration != null)
+            {
+                _insertModificationFunctionConfiguration
+                    .Configure(modificationFunctionMapping.InsertFunctionMapping);
+            }
+
+            if (_deleteModificationFunctionConfiguration != null)
+            {
+                _deleteModificationFunctionConfiguration
+                    .Configure(modificationFunctionMapping.DeleteFunctionMapping);
+            }
+        }
+
+        public bool IsCompatibleWith(ModificationFunctionsConfiguration other)
+        {
+            DebugCheck.NotNull(other);
+
+            if ((_insertModificationFunctionConfiguration != null)
+                && (other._insertModificationFunctionConfiguration != null)
+                && !_insertModificationFunctionConfiguration.IsCompatibleWith(other._insertModificationFunctionConfiguration))
+            {
+                return false;
+            }
+
+            if ((_deleteModificationFunctionConfiguration != null)
+                && (other._deleteModificationFunctionConfiguration != null)
+                && !_deleteModificationFunctionConfiguration.IsCompatibleWith(other._deleteModificationFunctionConfiguration))
+            {
+                return false;
+            }
+
+            return true;
         }
     }
 }
