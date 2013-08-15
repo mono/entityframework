@@ -16,8 +16,6 @@
     <DelaySign>true</DelaySign>
     <TargetFrameworkProfile />
     <BuildPackages>true</BuildPackages>
-    <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\..\</SolutionDir>
-    <RestorePackages>true</RestorePackages>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
@@ -98,6 +96,15 @@
       <Isolated>False</Isolated>
       <EmbedInteropTypes>False</EmbedInteropTypes>
     </COMReference>
+    <COMReference Include="VSLangProj">
+      <Guid>{49a1950e-3e35-4595-8cb9-920c64c44d67}</Guid>
+      <VersionMajor>7</VersionMajor>
+      <VersionMinor>0</VersionMinor>
+      <Lcid>0</Lcid>
+      <WrapperTool>primary</WrapperTool>
+      <Isolated>False</Isolated>
+      <EmbedInteropTypes>False</EmbedInteropTypes>
+    </COMReference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\EntityFramework\Properties\Resources.PowerShell.cs">
@@ -110,14 +117,16 @@
       <Link>Properties\SharedAssemblyVersionInfo.cs</Link>
     </Compile>
     <Compile Include="ConnectionFactoryConfig\ConnectionFactorySpecification.cs" />
+    <Compile Include="ConnectionFactoryConfig\ReferenceRemover.cs" />
+    <Compile Include="ConnectionFactoryConfig\AddDefaultConnectionFactoryCommand.cs" />
+    <Compile Include="ConnectionFactoryConfig\AddProviderCommand.cs" />
+    <Compile Include="ConnectionFactoryConfig\InitializeEntityFrameworkCommand.cs" />
     <Compile Include="Migrations\AddMigrationCommand.cs" />
     <Compile Include="ConnectionFactoryConfig\ConfigFileFinder.cs" />
     <Compile Include="ConnectionFactoryConfig\ConfigFileManipulator.cs" />
     <Compile Include="ConnectionFactoryConfig\ConfigFileProcessor.cs" />
-    <Compile Include="ConnectionFactoryConfig\ConnectionFactoryConfigurator.cs" />
     <Compile Include="ConnectionFactoryConfig\RegistryKeyProxy.cs" />
     <Compile Include="ConnectionFactoryConfig\ServiceControllerProxy.cs" />
-    <Compile Include="ConnectionFactoryConfig\SqlCompactConnectionFactoryConfigurator.cs" />
     <Compile Include="ConnectionFactoryConfig\SqlServerDetector.cs" />
     <Compile Include="Migrations\EnableMigrationsCommand.cs" />
     <Compile Include="Migrations\Extensions\IEnumerableExtensions.cs" />
@@ -166,5 +175,4 @@
   <Target Name="AfterBuild" Condition="$(BuildPackages) == 'true'">
     <MSBuild Projects="..\NuGet\NuGet.proj" />
   </Target>
-  <Import Project="$(SolutionDir)\.nuget\nuget.targets" />
 </Project>

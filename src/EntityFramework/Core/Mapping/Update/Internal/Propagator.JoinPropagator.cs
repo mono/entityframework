@@ -82,10 +82,10 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
             }
 
             /**
-             * These static dictionaries are initialized by the static constructor for this class.
-             * They describe for each combination of input elements (the key) propagation rules, which
-             * are expressions over the input expressions.
-             * */
+* These static dictionaries are initialized by the static constructor for this class.
+* They describe for each combination of input elements (the key) propagation rules, which
+* are expressions over the input expressions.
+* */
             private static readonly Dictionary<Ops, Ops> _innerJoinInsertRules;
             private static readonly Dictionary<Ops, Ops> _innerJoinDeleteRules;
             private static readonly Dictionary<Ops, Ops> _leftOuterJoinInsertRules;
@@ -342,15 +342,15 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
                     // First gather state entries contributing to the problem
                     var stateEntries = new List<IEntityStateEntry>();
                     Action<Tuple<CompositeKey, PropagatorResult>> addStateEntries = (r) =>
-                                                                                        {
-                                                                                            if (r != null)
-                                                                                            {
-                                                                                                stateEntries.AddRange(
-                                                                                                    SourceInterpreter.GetAllStateEntries(
-                                                                                                        r.Item2, m_parent.m_updateTranslator,
-                                                                                                        m_parent.m_table));
-                                                                                            }
-                                                                                        };
+                        {
+                            if (r != null)
+                            {
+                                stateEntries.AddRange(
+                                    SourceInterpreter.GetAllStateEntries(
+                                        r.Item2, m_parent.m_updateTranslator,
+                                        m_parent.m_table));
+                            }
+                        };
                     addStateEntries(leftInsert);
                     addStateEntries(leftDelete);
                     addStateEntries(rightInsert);

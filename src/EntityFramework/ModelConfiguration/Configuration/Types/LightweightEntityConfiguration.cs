@@ -28,7 +28,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types
         ///     The <see cref="Type" /> of this entity type.
         /// </param>
         /// <param name="configuration"> The configuration object that this instance wraps. </param>
-        public LightweightEntityConfiguration(Type type, Func<EntityTypeConfiguration> configuration)
+        internal LightweightEntityConfiguration(Type type, Func<EntityTypeConfiguration> configuration)
         {
             Check.NotNull(type, "type");
             Check.NotNull(configuration, "configuration");
@@ -75,11 +75,13 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types
         /// <remarks>
         ///     Calling this will have no effect if the property does not exist.
         /// </remarks>
-        public void Ignore(string propertyName)
+        public LightweightEntityConfiguration Ignore(string propertyName)
         {
             Check.NotEmpty(propertyName, "propertyName");
 
             Ignore(_type.GetProperty(propertyName));
+
+            return this;
         }
 
         /// <summary>
@@ -89,12 +91,14 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types
         /// <remarks>
         ///     Calling this will have no effect if the property does not exist.
         /// </remarks>
-        public void Ignore(PropertyInfo propertyInfo)
+        public LightweightEntityConfiguration Ignore(PropertyInfo propertyInfo)
         {
             if (propertyInfo != null)
             {
                 _configuration().Ignore(propertyInfo);
             }
+
+            return this;
         }
 
         /// <summary>
@@ -236,7 +240,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types
         /// <remarks>
         ///     Calling this will have no effect once it has been configured.
         /// </remarks>
-        public void ToTable(string tableName)
+        public LightweightEntityConfiguration ToTable(string tableName)
         {
             Check.NotEmpty(tableName, "tableName");
 
@@ -246,11 +250,8 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types
 
                 _configuration().ToTable(databaseName.Name, databaseName.Schema);
             }
-        }
 
-        public void MapToFunctions()
-        {
-            _configuration().MapToFunctions();
+            return this;
         }
 
         /// <summary>
@@ -261,7 +262,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types
         /// <remarks>
         ///     Calling this will have no effect once it has been configured.
         /// </remarks>
-        public void ToTable(string tableName, string schemaName)
+        public LightweightEntityConfiguration ToTable(string tableName, string schemaName)
         {
             Check.NotEmpty(tableName, "tableName");
 
@@ -269,6 +270,36 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types
             {
                 _configuration().ToTable(tableName, schemaName);
             }
+
+            return this;
+        }
+
+        public LightweightEntityConfiguration MapToStoredProcedures()
+        {
+            _configuration().MapToStoredProcedures();
+
+            return this;
+        }
+
+        public LightweightEntityConfiguration MapToStoredProcedures(
+            Action<LightweightModificationFunctionsConfiguration> modificationFunctionsConfigurationAction)
+        {
+            Check.NotNull(modificationFunctionsConfigurationAction, "modificationFunctionsConfigurationAction");
+
+            var modificationFunctionMappingConfiguration = new LightweightModificationFunctionsConfiguration(_type);
+
+            modificationFunctionsConfigurationAction(modificationFunctionMappingConfiguration);
+
+            MapToStoredProcedures(modificationFunctionMappingConfiguration.Configuration);
+
+            return this;
+        }
+
+        internal void MapToStoredProcedures(ModificationFunctionsConfiguration modificationFunctionsConfiguration)
+        {
+            DebugCheck.NotNull(modificationFunctionsConfiguration);
+
+            _configuration().MapToStoredProcedures(modificationFunctionsConfiguration);
         }
 
         [EditorBrowsable(EditorBrowsableState.Never)]

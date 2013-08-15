@@ -4,8 +4,10 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
 {
     using System.Collections.Generic;
     using System.Data.Entity.Core.Common;
+    using System.Data.Entity.Core.Mapping;
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.ModelConfiguration.Configuration.Mapping;
+    using System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigation;
     using System.Data.Entity.ModelConfiguration.Configuration.Types;
     using System.Data.Entity.ModelConfiguration.Conventions;
     using System.Data.Entity.ModelConfiguration.Edm;
@@ -284,13 +286,12 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
 
             foreach (var entityTypeConfiguration in ActiveEntityConfigurations)
             {
-                var entityType = model.GetEntityType(entityTypeConfiguration.ClrType);
+                ConfigureFunctionMappings(model, entityTypeConfiguration, model.GetEntityType(entityTypeConfiguration.ClrType));
+            }
 
-                Debug.Assert(entityType != null);
-
-                ConfigureFunctionMappings(model, entityTypeConfiguration, entityType);
-
-                entityTypeConfiguration.Configure(entityType, model);
+            foreach (var entityTypeConfiguration in ActiveEntityConfigurations)
+            {
+                entityTypeConfiguration.Configure(model.GetEntityType(entityTypeConfiguration.ClrType), model);
             }
         }
 
@@ -331,7 +332,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
 
                              if (!entityConfiguration.IsMappedToFunctions)
                              {
-                                 entityConfiguration.MapToFunctions();
+                                 entityConfiguration.MapToStoredProcedures();
                              }
                          });
         }
@@ -361,8 +362,8 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
                                   .Cast<StructuralTypeConfiguration>()
                                   .Where(c => c != null))
             {
-                structuralTypeConfiguration.Configure(
-                    databaseMapping.GetComplexPropertyMappings(structuralTypeConfiguration.ClrType),
+                structuralTypeConfiguration.ConfigurePropertyMappings(
+                    databaseMapping.GetComplexPropertyMappings(structuralTypeConfiguration.ClrType).ToList(),
                     providerManifest);
             }
 
@@ -371,6 +372,108 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             RemoveRedundantTables(databaseMapping);
             ConfigureTables(databaseMapping.Database);
             ConfigureDefaultSchema(databaseMapping);
+            UniquifyFunctionNames(databaseMapping);
+            ConfigureFunctionParameters(databaseMapping);
+            RemoveDuplicateTphColumns(databaseMapping);
+        }
+
+        private static void ConfigureFunctionParameters(DbDatabaseMapping databaseMapping)
+        {
+            DebugCheck.NotNull(databaseMapping);
+
+            foreach (var structuralTypeConfiguration
+                in databaseMapping.Model.ComplexTypes
+                                  .Select(ct => ct.GetConfiguration())
+                                  .Cast<StructuralTypeConfiguration>()
+                                  .Where(c => c != null))
+            {
+                structuralTypeConfiguration.ConfigureFunctionParameters(
+                    databaseMapping.GetComplexParameterBindings(structuralTypeConfiguration.ClrType).ToList());
+            }
+
+            foreach (var entityType in databaseMapping.Model.EntityTypes.Where(e => e.GetConfiguration() != null))
+            {
+                var entityTypeConfiguration = (EntityTypeConfiguration)entityType.GetConfiguration();
+
+                entityTypeConfiguration.ConfigureFunctionParameters(databaseMapping, entityType);
+            }
+        }
+
+        private static void UniquifyFunctionNames(DbDatabaseMapping databaseMapping)
+        {
+            DebugCheck.NotNull(databaseMapping);
+
+            foreach (var modificationFunctionMapping 
+                in databaseMapping
+                    .GetEntitySetMappings()
+                    .SelectMany(esm => esm.ModificationFunctionMappings))
+            {
+                var entityTypeConfiguration
+                    = (EntityTypeConfiguration)modificationFunctionMapping.EntityType.GetConfiguration();
+
+                if (entityTypeConfiguration.ModificationFunctionsConfiguration == null)
+                {
+                    continue;
+                }
+
+                UniquifyFunctionName(
+                    databaseMapping,
+                    entityTypeConfiguration.ModificationFunctionsConfiguration.InsertModificationFunctionConfiguration,
+                    modificationFunctionMapping.InsertFunctionMapping);
+
+                UniquifyFunctionName(
+                    databaseMapping,
+                    entityTypeConfiguration.ModificationFunctionsConfiguration.UpdateModificationFunctionConfiguration,
+                    modificationFunctionMapping.UpdateFunctionMapping);
+
+                UniquifyFunctionName(
+                    databaseMapping,
+                    entityTypeConfiguration.ModificationFunctionsConfiguration.DeleteModificationFunctionConfiguration,
+                    modificationFunctionMapping.DeleteFunctionMapping);
+            }
+
+            foreach (var modificationFunctionMapping 
+                in databaseMapping
+                    .GetAssociationSetMappings()
+                    .Select(asm => asm.ModificationFunctionMapping)
+                    .Where(asm => asm != null))
+            {
+                var navigationPropertyConfiguration
+                    = (NavigationPropertyConfiguration)modificationFunctionMapping
+                                                           .AssociationSet.ElementType.GetConfiguration();
+
+                if (navigationPropertyConfiguration.ModificationFunctionsConfiguration == null)
+                {
+                    continue;
+                }
+
+                UniquifyFunctionName(
+                    databaseMapping,
+                    navigationPropertyConfiguration.ModificationFunctionsConfiguration.InsertModificationFunctionConfiguration,
+                    modificationFunctionMapping.InsertFunctionMapping);
+
+                UniquifyFunctionName(
+                    databaseMapping,
+                    navigationPropertyConfiguration.ModificationFunctionsConfiguration.DeleteModificationFunctionConfiguration,
+                    modificationFunctionMapping.DeleteFunctionMapping);
+            }
+        }
+
+        private static void UniquifyFunctionName(
+            DbDatabaseMapping databaseMapping,
+            ModificationFunctionConfiguration modificationFunctionConfiguration,
+            StorageModificationFunctionMapping functionMapping)
+        {
+            DebugCheck.NotNull(databaseMapping);
+            DebugCheck.NotNull(functionMapping);
+
+            if ((modificationFunctionConfiguration == null)
+                || string.IsNullOrWhiteSpace(modificationFunctionConfiguration.Name))
+            {
+                functionMapping.Function.Name
+                    = databaseMapping.Database.Functions.Except(new[] { functionMapping.Function })
+                                     .UniquifyName(functionMapping.Function.Name);
+            }
         }
 
         private void ConfigureDefaultSchema(DbDatabaseMapping databaseMapping)
@@ -388,6 +491,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
 
         private void ConfigureEntityTypes(DbDatabaseMapping databaseMapping, DbProviderManifest providerManifest)
         {
+            DebugCheck.NotNull(databaseMapping);
+            DebugCheck.NotNull(providerManifest);
+
             var sortedEntityConfigurations =
                 SortEntityConfigurationsByInheritance(databaseMapping);
 
@@ -559,6 +665,21 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
                     subTypeEntityConfiguration.AddMappingConfiguration(
                         subTypeAndMappingConfigurationPair.Value, cloneable: false);
                 }
+            }
+        }
+
+        private static void RemoveDuplicateTphColumns(DbDatabaseMapping databaseMapping)
+        {
+            foreach (var table in databaseMapping.Database.EntityTypes)
+            {
+                var currentTable = table; // Prevent access to foreach variable in closure
+                new TphColumnFixer(
+                    databaseMapping
+                        .GetEntitySetMappings()
+                        .SelectMany(e => e.EntityTypeMappings)
+                        .SelectMany(e => e.MappingFragments)
+                        .Where(f => f.Table == currentTable)
+                        .SelectMany(f => f.ColumnMappings)).RemoveDuplicateTphColumns();
             }
         }
 

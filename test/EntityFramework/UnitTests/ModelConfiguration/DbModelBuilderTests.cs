@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
-namespace System.Data.Entity.ModelConfiguration.UnitTests
+namespace System.Data.Entity.ModelConfiguration
 {
     using System.Collections.Generic;
     using System.ComponentModel.DataAnnotations.Schema;
@@ -346,16 +346,13 @@ namespace System.Data.Entity.ModelConfiguration.UnitTests
             var entityType = CreateEntityTypeWithProperties(props);
             configuration.Configure(entityType, new EdmModel(DataSpace.CSpace));
 
-            Assert.Equal(1, entityType.DeclaredKeyProperties.Count);
-            Assert.Equal(expectedKeyName, entityType.DeclaredKeyProperties.Single().Name);
+            Assert.Equal(1, entityType.KeyProperties.Count);
+            Assert.Equal(expectedKeyName, entityType.KeyProperties.Single().Name);
         }
 
         private EntityType CreateEntityTypeWithProperties(params PropertyInfo[] props)
         {
-            var entityType = new EntityType
-                                 {
-                                     Name = "E"
-                                 };
+            var entityType = new EntityType("E", "N", DataSpace.CSpace);
             foreach (var prop in props)
             {
                 var property = EdmProperty.Primitive(prop.Name, PrimitiveType.GetEdmPrimitiveType(PrimitiveTypeKind.String));
@@ -461,7 +458,7 @@ namespace System.Data.Entity.ModelConfiguration.UnitTests
         {
             var configuration = new EntityTypeConfiguration(typeof(object));
 
-            configuration.MapToFunctions();
+            configuration.MapToStoredProcedures();
 
             var clone = configuration.Clone();
             
@@ -537,7 +534,7 @@ namespace System.Data.Entity.ModelConfiguration.UnitTests
         [Fact]
         public void PrimitivePropertyConfiguration_has_expected_number_of_fields()
         {
-            VerifyFieldCount<PrimitivePropertyConfiguration>(8);
+            VerifyFieldCount<PrimitivePropertyConfiguration>(9);
         }
 
         [Fact]
@@ -690,7 +687,7 @@ namespace System.Data.Entity.ModelConfiguration.UnitTests
         [Fact]
         public void NavigationPropertyConfiguration_has_expected_number_of_fields()
         {
-            VerifyFieldCount<NavigationPropertyConfiguration>(8);
+            VerifyFieldCount<NavigationPropertyConfiguration>(9);
         }
 
         [Fact]
@@ -726,6 +723,22 @@ namespace System.Data.Entity.ModelConfiguration.UnitTests
 
             Assert.NotSame(configuration.AssociationMappingConfiguration, clone.AssociationMappingConfiguration);
             Assert.Equal(configuration.AssociationMappingConfiguration, clone.AssociationMappingConfiguration);
+        }
+
+        [Fact]
+        public void Cloning_a_navigation_property_configuration_clones_its_function_mapping_configuration()
+        {
+            var navProp = new MockPropertyInfo(typeof(int), "P1");
+            var configuration = new NavigationPropertyConfiguration(navProp);
+
+            var functionsConfiguration = new ModificationFunctionsConfiguration();
+            
+            configuration.ModificationFunctionsConfiguration = functionsConfiguration;
+
+            var clone = configuration.Clone();
+
+            Assert.NotSame(configuration.ModificationFunctionsConfiguration, clone.ModificationFunctionsConfiguration);
+            Assert.True(configuration.ModificationFunctionsConfiguration.IsCompatibleWith(clone.ModificationFunctionsConfiguration));
         }
 
         [Fact]

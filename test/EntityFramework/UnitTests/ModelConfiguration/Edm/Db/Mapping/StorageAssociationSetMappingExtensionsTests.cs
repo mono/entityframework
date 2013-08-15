@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
-namespace System.Data.Entity.ModelConfiguration.Edm.Db.Mapping.UnitTests
+namespace System.Data.Entity.ModelConfiguration.Edm.Db.Mapping
 {
     using System.Data.Entity.Core.Mapping;
     using System.Data.Entity.Core.Metadata.Edm;
@@ -12,7 +12,7 @@ namespace System.Data.Entity.ModelConfiguration.Edm.Db.Mapping.UnitTests
         public void Initialize_should_initialize_ends()
         {
             var associationSetMapping 
-                = new StorageAssociationSetMapping(new AssociationSet("AS", new AssociationType()), new EntitySet()).Initialize();
+                = new StorageAssociationSetMapping(new AssociationSet("AS", new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace)), new EntitySet()).Initialize();
 
             Assert.NotNull(associationSetMapping.SourceEndMapping);
             Assert.NotNull(associationSetMapping.TargetEndMapping);
@@ -22,7 +22,7 @@ namespace System.Data.Entity.ModelConfiguration.Edm.Db.Mapping.UnitTests
         public void Can_get_and_set_configuration_annotation()
         {
             var associationSetMapping 
-                = new StorageAssociationSetMapping(new AssociationSet("AS", new AssociationType()), new EntitySet());
+                = new StorageAssociationSetMapping(new AssociationSet("AS", new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace)), new EntitySet());
 
             associationSetMapping.SetConfiguration(42);
 

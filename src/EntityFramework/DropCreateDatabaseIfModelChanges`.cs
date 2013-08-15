@@ -3,8 +3,8 @@
 namespace System.Data.Entity
 {
     using System.Data.Entity.Config;
+    using System.Data.Entity.Internal;
     using System.Data.Entity.Utilities;
-    using System.Transactions;
 
     /// <summary>
     ///     An implementation of IDatabaseInitializer that will <b>DELETE</b>, recreate, and optionally re-seed the
@@ -39,13 +39,8 @@ namespace System.Data.Entity
         {
             Check.NotNull(context, "context");
 
-            bool databaseExists;
-            using (new TransactionScope(TransactionScopeOption.Suppress))
-            {
-                databaseExists = context.Database.Exists();
-            }
-
-            if (databaseExists)
+            if (context.Database.Exists()
+                && new DatabaseTableChecker().AnyModelTableExists(context))
             {
                 if (context.Database.CompatibleWithModel(throwIfNoMetadata: true))
                 {
@@ -56,7 +51,7 @@ namespace System.Data.Entity
             }
 
             // Database didn't exist or we deleted it, so we now create it again.
-            context.Database.Create();
+            context.Database.Create(skipExistsCheck: true);
 
             Seed(context);
             context.SaveChanges();

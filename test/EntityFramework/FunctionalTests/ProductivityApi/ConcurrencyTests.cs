@@ -3,15 +3,19 @@
 namespace ProductivityApiTests
 {
     using System;
+    using System.Collections.Generic;
     using System.Data.Entity;
     using System.Data.Entity.Core;
     using System.Data.Entity.Infrastructure;
     using System.IO;
     using System.Linq;
     using System.Runtime.Serialization.Formatters.Binary;
+    using System.Threading;
+    using System.Threading.Tasks;
     using System.Transactions;
     using AdvancedPatternsModel;
     using ConcurrencyModel;
+    using SimpleModel;
     using Xunit;
     using Xunit.Extensions;
 
@@ -23,7 +27,7 @@ namespace ProductivityApiTests
     {
         #region Infrastructure/setup
 
-        static ConcurrencyTests()
+        public ConcurrencyTests()
         {
             using (var context = new F1Context())
             {
@@ -619,6 +623,85 @@ namespace ProductivityApiTests
 
         #endregion
 
+        #region Tests for calling ReloadAsync on an entity in various states
+
+#if !NET40
+
+        [Fact]
+        public void Calling_ReloadAsync_on_an_Added_entity_throws()
+        {
+            using (var context = new F1Context())
+            {
+                var entry =
+                    context.Entry(
+                        context.Drivers.Add(
+                            new Driver
+                            {
+                                Name = "Larry David",
+                                TeamId = Team.Ferrari
+                            }));
+
+                Assert.Throws<InvalidOperationException>(() => entry.ReloadAsync().Wait()).ValidateMessage(
+                    "DbPropertyValues_CannotGetValuesForState", "ReloadAsync", "Added");
+            }
+        }
+
+        [Fact]
+        public void Calling_ReloadAsync_on_a_detached_entity_throws()
+        {
+            using (var context = new F1Context())
+            {
+                var entry =
+                    context.Entry(
+                        context.Drivers.Add(
+                            new Driver
+                            {
+                                Name = "Larry David",
+                                TeamId = Team.Ferrari
+                            }));
+                entry.State = EntityState.Detached;
+
+                Assert.Throws<InvalidOperationException>(() => entry.ReloadAsync().Wait()).ValidateMessage(
+                    "DbEntityEntry_NotSupportedForDetached", "ReloadAsync", "Driver");
+            }
+        }
+
+        [Fact]
+        public void Calling_ReloadAsync_on_a_Unchanged_entity_makes_the_entity_unchanged()
+        {
+            TestReloadAsyncPositive(EntityState.Unchanged);
+        }
+
+        [Fact]
+        public void Calling_ReloadAsync_on_a_Modified_entity_makes_the_entity_unchanged()
+        {
+            TestReloadAsyncPositive(EntityState.Modified);
+        }
+
+        [Fact]
+        public void Calling_ReloadAsync_on_a_Deleted_entity_makes_the_entity_unchanged()
+        {
+            TestReloadAsyncPositive(EntityState.Deleted);
+        }
+
+        private void TestReloadAsyncPositive(EntityState state)
+        {
+            using (var context = new F1Context())
+            {
+                var larry = context.Drivers.Single(d => d.Name == "Jenson Button");
+                var entry = context.Entry(larry);
+                entry.State = state;
+
+                entry.ReloadAsync().Wait();
+
+                Assert.Equal(EntityState.Unchanged, entry.State);
+            }
+        }
+
+#endif
+
+        #endregion
+
         #region Serialization of exceptions
 
         [Fact]
@@ -749,6 +832,381 @@ namespace ProductivityApiTests
                 }
             }
         }
+
+        #endregion
+
+        #region Not awaited async methods
+
+#if !NET40
+
+        /// <summary>
+        /// An IExecutionStrategy that blocks the execution of async actions until it is signaled
+        /// </summary>
+        public class BlockingStrategy : IExecutionStrategy
+        {
+            private readonly Task _signalTask;
+
+            public BlockingStrategy(Task signalTask)
+            {
+                _signalTask = signalTask;
+            }
+
+            public bool RetriesOnFailure
+            {
+                get { return false; }
+            }
+
+            public void Execute(Action action)
+            {
+                action();
+            }
+
+            public TResult Execute<TResult>(Func<TResult> func)
+            {
+                return func();
+            }
+
+            public async Task ExecuteAsync(Func<Task> func, CancellationToken cancellationToken)
+            {
+                await _signalTask;
+                await func();
+            }
+
+            public async Task<TResult> ExecuteAsync<TResult>(Func<Task<TResult>> func, CancellationToken cancellationToken)
+            {
+                await _signalTask;
+                return await func();
+            }
+        }
+
+        [Fact]
+        public void SaveChanges_throws_on_concurrent_call()
+        {
+            VerifyConcurrency(
+                (context, tasks) =>
+                    {
+                        context.Products.Add(new Product());
+                        tasks.Add(context.SaveChangesAsync());
+                        context.SaveChanges();
+                    }, true);
+        }
+
+        [Fact]
+        public void SaveChangesAsync_throws_on_concurrent_call()
+        {
+            VerifyConcurrency(
+                (context, tasks) =>
+                    {
+                        context.Products.Add(new Product());
+                        tasks.Add(context.SaveChangesAsync());
+                        tasks.Add(context.SaveChangesAsync());
+                    }, true);
+        }
+
+        [Fact]
+        public void FindAsync_throws_on_concurrent_call()
+        {
+            VerifyConcurrency(
+                (context, tasks) =>
+                    {
+                        context.Products.Add(new Product());
+                        tasks.Add(context.SaveChangesAsync());
+                        tasks.Add(context.Products.FindAsync(1));
+                    }, true);
+        }
+
+        [Fact]
+        public void FindAsync_triggers_exception_on_concurrent_call()
+        {
+            VerifyConcurrency(
+                (context, tasks) =>
+                    {
+                        context.Products.Add(new Product());
+                        tasks.Add(context.Products.FindAsync(1));
+                        tasks.Add(context.SaveChangesAsync());
+                    }, true);
+        }
+
+        [Fact]
+        public void FindAsync_doesnt_trigger_exception_on_concurrent_call_if_already_tracked()
+        {
+            VerifyConcurrency(
+                (context, tasks) =>
+                    {
+                        context.Products.Add(new Product());
+                        context.Products.Find(1);
+                        tasks.Add(context.Products.FindAsync(1));
+                        tasks.Add(context.SaveChangesAsync());
+                    }, false);
+        }
+
+        [Fact]
+        public void Find_throws_on_concurrent_call()
+        {
+            VerifyConcurrency(
+                (context, tasks) =>
+                    {
+                        context.Products.Add(new Product());
+                        tasks.Add(context.SaveChangesAsync());
+                        context.Products.Find(1);
+                    }, true);
+        }
+
+        [Fact]
+        public void ReloadAsync_throws_on_concurrent_call()
+        {
+            VerifyConcurrency(
+                (context, tasks) =>
+                {
+                    var entry = context.Entry(context.Products.First());
+                    context.Products.Add(new Product());
+                    tasks.Add(context.SaveChangesAsync());
+                    tasks.Add(entry.ReloadAsync());
+                }, true);
+        }
+
+        [Fact]
+        public void ReloadAsync_triggers_exception_on_concurrent_call()
+        {
+            VerifyConcurrency(
+                (context, tasks) =>
+                {
+                    var entry = context.Entry(context.Products.First());
+                    context.Products.Add(new Product());
+                    tasks.Add(entry.ReloadAsync());
+                    tasks.Add(context.SaveChangesAsync());
+                }, true);
+        }
+        
+        [Fact]
+        public void Reload_throws_on_concurrent_call()
+        {
+            VerifyConcurrency(
+                (context, tasks) =>
+                    {
+                        var entry = context.Entry(context.Products.First());
+                        context.Products.Add(new Product());
+                        tasks.Add(context.SaveChangesAsync());
+                        entry.Reload();
+                    }, true);
+        }
+
+        [Fact]
+        public void DbQuery_ToListAsync_throws_on_concurrent_call()
+        {
+            VerifyConcurrency(
+                (context, tasks) =>
+                    {
+                        context.Products.Add(new Product());
+                        tasks.Add(context.SaveChangesAsync());
+                        tasks.Add(context.Products.Where(p => p != null).ToListAsync());
+                    }, true);
+        }
+
+        [Fact]
+        public void DbQuery_ToListAsync_AsNoTracking_throws_on_concurrent_call()
+        {
+            VerifyConcurrency(
+                (context, tasks) =>
+                    {
+                        context.Products.Add(new Product());
+                        tasks.Add(context.SaveChangesAsync());
+                        tasks.Add(context.Products.Where(p => p != null).AsNoTracking().ToListAsync());
+                    }, true);
+        }
+
+        [Fact]
+        public void DbQuery_ToListAsync_triggers_exception_on_concurrent_call()
+        {
+            VerifyConcurrency(
+                (context, tasks) =>
+                    {
+                        context.Products.Add(new Product());
+                        tasks.Add(context.Products.Where(p => p != null).ToListAsync());
+                        tasks.Add(context.SaveChangesAsync());
+                    }, true);
+        }
+
+        [Fact]
+        public void DbQuery_ToListAsync_AsNoTracking_doesnt_trigger_exception_on_concurrent_call()
+        {
+            VerifyConcurrency(
+                (context, tasks) =>
+                    {
+                        context.Products.Add(new Product());
+                        tasks.Add(context.Products.Where(p => p != null).AsNoTracking().ToListAsync());
+                        tasks.Add(context.SaveChangesAsync());
+                    }, false);
+        }
+
+        [Fact]
+        public void DbQuery_ToList_throws_on_concurrent_call()
+        {
+            VerifyConcurrency(
+                (context, tasks) =>
+                    {
+                        context.Products.Add(new Product());
+                        tasks.Add(context.SaveChangesAsync());
+                        context.Products.Where(p => p != null).ToList();
+                    }, true);
+        }
+
+        [Fact]
+        public void DbSqlQuery_ToListAsync_throws_on_concurrent_call()
+        {
+            VerifyConcurrency(
+                (context, tasks) =>
+                    {
+                        context.Products.Add(new Product());
+                        tasks.Add(context.SaveChangesAsync());
+                        tasks.Add(context.Products.SqlQuery("select * from Products").ToListAsync());
+                    }, true);
+        }
+
+        [Fact]
+        public void DbSqlQuery_ToListAsync_AsNoTracking_throws_on_concurrent_call()
+        {
+            VerifyConcurrency(
+                (context, tasks) =>
+                    {
+                        context.Products.Add(new Product());
+                        tasks.Add(context.SaveChangesAsync());
+                        tasks.Add(context.Products.SqlQuery("select * from Products").AsNoTracking().ToListAsync());
+                    }, true);
+        }
+
+        [Fact]
+        public void DbSqlQuery_ToListAsync_triggers_exception_on_concurrent_call()
+        {
+            VerifyConcurrency(
+                (context, tasks) =>
+                    {
+                        context.Products.Add(new Product());
+                        tasks.Add(context.Products.SqlQuery("select * from Products").ToListAsync());
+                        tasks.Add(context.SaveChangesAsync());
+                    }, true);
+        }
+
+        [Fact]
+        public void DbSqlQuery_ToListAsync_AsNoTracking_doesnt_trigger_exception_on_concurrent_call()
+        {
+            VerifyConcurrency(
+                (context, tasks) =>
+                    {
+                        context.Products.Add(new Product());
+                        tasks.Add(context.Products.SqlQuery("select * from Products").AsNoTracking().ToListAsync());
+                        tasks.Add(context.SaveChangesAsync());
+                    }, false);
+        }
+
+        [Fact]
+        public void DbSqlQuery_ToList_throws_on_concurrent_call()
+        {
+            VerifyConcurrency(
+                (context, tasks) =>
+                    {
+                        context.Products.Add(new Product());
+                        tasks.Add(context.SaveChangesAsync());
+                        context.Products.SqlQuery("select * from Products").ToList();
+                    }, true);
+        }
+
+        [Fact]
+        public void ExecuteFunction_throws_on_concurrent_call()
+        {
+            VerifyConcurrency(
+                (context, tasks) =>
+                    {
+                        context.Products.Add(new Product());
+                        tasks.Add(context.SaveChangesAsync());
+                        ((IObjectContextAdapter)context).ObjectContext.ExecuteFunction("Foo");
+                    }, true);
+        }
+
+        [Fact]
+        public void ExecuteSqlCommand_throws_on_concurrent_call()
+        {
+            VerifyConcurrency(
+                (context, tasks) =>
+                    {
+                        context.Products.Add(new Product());
+                        tasks.Add(context.SaveChangesAsync());
+                        context.Database.ExecuteSqlCommand("select * from Products");
+                    }, true);
+        }
+
+        [Fact]
+        public void ExecuteSqlCommandAsync_throws_on_concurrent_call()
+        {
+            VerifyConcurrency(
+                (context, tasks) =>
+                    {
+                        context.Products.Add(new Product());
+                        tasks.Add(context.SaveChangesAsync());
+                        tasks.Add(context.Database.ExecuteSqlCommandAsync("select * from Products"));
+                    }, true);
+        }
+
+        [Fact]
+        public void ExecuteSqlCommandAsync_triggers_exception_on_concurrent_call()
+        {
+            VerifyConcurrency(
+                (context, tasks) =>
+                    {
+                        context.Products.Add(new Product());
+                        tasks.Add(context.Database.ExecuteSqlCommandAsync("select * from Products"));
+                        tasks.Add(context.SaveChangesAsync());
+                    }, true);
+        }
+
+        private void VerifyConcurrency(Action<SimpleModelContext, List<Task>> execute, bool shouldThrow)
+        {
+            var taskCompletionSource = new TaskCompletionSource<object>();
+            MutableResolver.AddResolver<Func<IExecutionStrategy>>(k => (Func<IExecutionStrategy>)(() => new BlockingStrategy(taskCompletionSource.Task)));
+
+            // The returned tasks need to be awaited on before the test ends in case they are faulted
+            var tasks = new List<Task>();
+            try
+            {
+                // Needs MARS enabled for concurrent queries
+                using (var context = new SimpleModelContext(
+                    @"Data Source=.\SQLEXPRESS;Initial Catalog=SimpleModel.SimpleModelContext;Integrated Security=True;MultipleActiveResultSets=True")
+                    )
+                {
+                    using (context.Database.BeginTransaction())
+                    {
+                        if (shouldThrow)
+                        {
+                            Assert.Throws<DbConcurrencyException>(
+                                () => execute(context, tasks)).ValidateMessage("ConcurrentMethodInvocation");
+                        }
+                        else
+                        {
+                            execute(context, tasks);
+                        }
+
+                        taskCompletionSource.SetResult(null);
+                        // Need to wait for all readers to close before disposing the transactions
+                        // The exception needs to be thrown before this call
+                        Task.WaitAll(tasks.ToArray());
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                if (!taskCompletionSource.Task.IsCompleted)
+                {
+                    taskCompletionSource.SetException(ex);
+                }
+                Task.WaitAll(tasks.ToArray());
+            }
+            finally
+            {
+                MutableResolver.ClearResolvers();
+            }
+        }
+
+#endif
 
         #endregion
 

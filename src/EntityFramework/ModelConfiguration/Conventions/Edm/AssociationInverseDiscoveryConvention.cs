@@ -35,10 +35,10 @@ namespace System.Data.Entity.ModelConfiguration.Conventions
                               || ((a2Configuration.InverseEndKind == null)
                                   && (a2Configuration.InverseNavigationProperty == null))))
                    select new
-                              {
-                                  a1,
-                                  a2
-                              })
+                       {
+                           a1,
+                           a2
+                       })
                     .Distinct((a, b) => a.a1 == b.a2 && a.a2 == b.a1)
                     .GroupBy(
                         (a, b) => a.a1.SourceEnd.GetEntityType() == b.a2.TargetEnd.GetEntityType()
@@ -60,6 +60,13 @@ namespace System.Data.Entity.ModelConfiguration.Conventions
 
                     unifiedAssociation.Constraint.FromRole = unifiedAssociation.SourceEnd;
                     unifiedAssociation.Constraint.ToRole = unifiedAssociation.TargetEnd;
+                }
+
+                var sourceEndClrProperty = redundantAssociation.SourceEnd.GetClrPropertyInfo();
+
+                if (sourceEndClrProperty != null)
+                {
+                    unifiedAssociation.TargetEnd.SetClrPropertyInfo(sourceEndClrProperty);
                 }
 
                 FixNavigationProperties(model, unifiedAssociation, redundantAssociation);

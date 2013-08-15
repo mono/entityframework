@@ -27,18 +27,6 @@ namespace System.Data.Entity.Migrations.Edm
         private static readonly XNamespace _ssdlNamespaceV3
             = XNamespace.Get("http://schemas.microsoft.com/ado/2009/11/edm/ssdl");
 
-        private static readonly XNamespace _systemNamespace
-            = XNamespace.Get("http://schemas.microsoft.com/ado/2012/10/edm/migrations");
-
-        public static readonly XName IsSystemName = _systemNamespace + "IsSystem";
-
-        public static bool IsSystem(this XElement element)
-        {
-            DebugCheck.NotNull(element);
-
-            return string.Equals("true", (string)element.Attribute(IsSystemName), StringComparison.Ordinal);
-        }
-
         public static string ActionAttribute(this XElement element)
         {
             DebugCheck.NotNull(element);
@@ -66,6 +54,13 @@ namespace System.Data.Entity.Migrations.Edm
             DebugCheck.NotNull(element);
 
             return (string)element.Attribute("Name");
+        }
+        
+        public static string NamespaceAttribute(this XElement element)
+        {
+            DebugCheck.NotNull(element);
+
+            return (string)element.Attribute("Namespace");
         }
 
         public static string EntityTypeAttribute(this XElement element)
@@ -205,10 +200,10 @@ namespace System.Data.Entity.Migrations.Edm
                 DebugCheck.NotEmpty(elementName);
 
                 return new List<XName>
-                           {
-                               _csdlNamespaceV3 + elementName,
-                               _csdlNamespaceV2 + elementName
-                           };
+                    {
+                        _csdlNamespaceV3 + elementName,
+                        _csdlNamespaceV2 + elementName
+                    };
             }
         }
 
@@ -229,10 +224,10 @@ namespace System.Data.Entity.Migrations.Edm
                 DebugCheck.NotEmpty(elementName);
 
                 return new List<XName>
-                           {
-                               _mslNamespaceV3 + elementName,
-                               _mslNamespaceV2 + elementName
-                           };
+                    {
+                        _mslNamespaceV3 + elementName,
+                        _mslNamespaceV2 + elementName
+                    };
             }
         }
 
@@ -256,10 +251,10 @@ namespace System.Data.Entity.Migrations.Edm
                 DebugCheck.NotEmpty(elementName);
 
                 return new List<XName>
-                           {
-                               _ssdlNamespaceV3 + elementName,
-                               _ssdlNamespaceV2 + elementName
-                           };
+                    {
+                        _ssdlNamespaceV3 + elementName,
+                        _ssdlNamespaceV2 + elementName
+                    };
             }
         }
     }

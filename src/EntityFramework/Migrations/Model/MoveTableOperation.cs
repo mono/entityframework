@@ -67,8 +67,10 @@ namespace System.Data.Entity.Migrations.Model
             get { return false; }
         }
 
-        internal string ContextKey { get; set; }
+        public string ContextKey { get; internal set; }
 
-        internal CreateTableOperation CreateTableOperation { get; set; }
+        public bool IsSystem { get; internal set; }
+
+        public CreateTableOperation CreateTableOperation { get; internal set; }
     }
 }

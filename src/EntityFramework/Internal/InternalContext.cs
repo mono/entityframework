@@ -20,6 +20,7 @@ namespace System.Data.Entity.Internal
     using System.Data.Entity.Migrations;
     using System.Data.Entity.Migrations.History;
     using System.Data.Entity.Migrations.Infrastructure;
+    using System.Data.Entity.ModelConfiguration.Utilities;
     using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
     using System.Data.Entity.Validation;
@@ -109,9 +110,12 @@ namespace System.Data.Entity.Internal
             new Dictionary<Type, IInternalSetAdapter>();
 
         // Used to create validators to validate entities or properties and contexts for validating entities and properties.
-        private readonly ValidationProvider _validationProvider = new ValidationProvider();
+        private readonly ValidationProvider _validationProvider = new ValidationProvider(
+            null, DbConfiguration.GetService<AttributeProvider>());
 
         private bool _oSpaceLoadingForced;
+
+        private DbProviderFactory _providerFactory;
 
         public event EventHandler<EventArgs> OnDisposing;
 
@@ -126,6 +130,7 @@ namespace System.Data.Entity.Internal
             DebugCheck.NotNull(owner);
 
             _owner = owner;
+
             AutoDetectChangesEnabled = true;
             ValidateOnSaveEnabled = true;
         }
@@ -277,8 +282,7 @@ namespace System.Data.Entity.Internal
         /// <returns> The model hash, or null if not found. </returns>
         public virtual string QueryForModelHash()
         {
-            return new EdmMetadataRepository(
-                OriginalConnectionString, DbProviderServices.GetProviderFactory(Connection))
+            return new EdmMetadataRepository(OriginalConnectionString, ProviderFactory)
                 .QueryForModelHash(c => new EdmMetadataContext(c));
         }
 
@@ -312,9 +316,10 @@ namespace System.Data.Entity.Internal
         {
             return new HistoryRepository(
                 OriginalConnectionString,
-                DbProviderServices.GetProviderFactory(Connection),
+                ProviderFactory,
                 ContextKey,
-                new[] { DefaultSchema });
+                CommandTimeout,
+                new [] { DefaultSchema });
         }
 
         /// <summary>
@@ -406,6 +411,7 @@ namespace System.Data.Entity.Internal
                 var shouldDetectChanges = AutoDetectChangesEnabled && !ValidateOnSaveEnabled;
                 var saveOptions = SaveOptions.AcceptAllChangesAfterSave |
                                   (shouldDetectChanges ? SaveOptions.DetectChangesBeforeSave : 0);
+
                 return ObjectContext.SaveChanges(saveOptions);
             }
             catch (UpdateException ex)
@@ -416,29 +422,48 @@ namespace System.Data.Entity.Internal
 
 #if !NET40
 
-        public virtual async Task<int> SaveChangesAsync(CancellationToken cancellationToken)
+        public virtual Task<int> SaveChangesAsync(CancellationToken cancellationToken)
         {
-            try
+            if (ValidateOnSaveEnabled)
             {
-                if (ValidateOnSaveEnabled)
+                var validationResults = Owner.GetValidationErrors();
+                if (validationResults.Any())
                 {
-                    var validationResults = Owner.GetValidationErrors();
-                    if (validationResults.Any())
-                    {
-                        throw new DbEntityValidationException(
-                            Strings.DbEntityValidationException_ValidationFailed, validationResults);
-                    }
+                    throw new DbEntityValidationException(
+                        Strings.DbEntityValidationException_ValidationFailed, validationResults);
                 }
+            }
 
-                var shouldDetectChanges = AutoDetectChangesEnabled && !ValidateOnSaveEnabled;
-                var saveOptions = SaveOptions.AcceptAllChangesAfterSave |
-                                  (shouldDetectChanges ? SaveOptions.DetectChangesBeforeSave : 0);
-                return await ObjectContext.SaveChangesAsync(saveOptions, cancellationToken).ConfigureAwait(continueOnCapturedContext: false);
-            }
-            catch (UpdateException ex)
-            {
-                throw WrapUpdateException(ex);
-            }
+            var tcs = new TaskCompletionSource<int>();
+            var shouldDetectChanges = AutoDetectChangesEnabled && !ValidateOnSaveEnabled;
+            var saveOptions = SaveOptions.AcceptAllChangesAfterSave |
+                              (shouldDetectChanges ? SaveOptions.DetectChangesBeforeSave : 0);
+            ObjectContext.SaveChangesAsync(saveOptions, cancellationToken).ContinueWith(
+                t =>
+                    {
+                        if (t.IsFaulted)
+                        {
+                            var wrappedExceptions = t.Exception.InnerExceptions.Select(
+                                ex =>
+                                    {
+                                        var updateException = ex as UpdateException;
+                                        return updateException == null
+                                                   ? ex
+                                                   : WrapUpdateException(updateException);
+                                    });
+                            tcs.TrySetException(wrappedExceptions);
+                        }
+                        else if (t.IsCanceled)
+                        {
+                            tcs.TrySetCanceled();
+                        }
+                        else
+                        {
+                            tcs.TrySetResult(t.Result);
+                        }
+                    }, TaskContinuationOptions.ExecuteSynchronously);
+
+            return tcs.Task;
         }
 
 #endif
@@ -546,6 +571,13 @@ namespace System.Data.Entity.Internal
         ///     Gets or sets a value indicating whether proxy creation is enabled.
         /// </summary>
         public abstract bool ProxyCreationEnabled { get; set; }
+
+        /// <summary>
+        ///     Gets or sets a value indicating whether database null comparison behavior is enabled.
+        /// </summary>
+        public abstract bool UseDatabaseNullSemantics { get; set; }
+
+        public abstract int? CommandTimeout { get; set; }
 
         /// <summary>
         ///     Gets or sets a value indicating whether DetectChanges is called automatically in the API.
@@ -782,6 +814,8 @@ namespace System.Data.Entity.Internal
             DebugCheck.NotNull(sql);
             DebugCheck.NotNull(parameters);
 
+            ObjectContext.AsyncMonitor.EnsureNotEntered();
+
             return new LazyEnumerator<TElement>(
                 () =>
                     {
@@ -821,30 +855,32 @@ namespace System.Data.Entity.Internal
             DebugCheck.NotNull(sql);
             DebugCheck.NotNull(parameters);
 
+            ObjectContext.AsyncMonitor.EnsureNotEntered();
+
             return new LazyAsyncEnumerator<TElement>(
                 async cancellationToken =>
-                          {
-                              // Not initializing asynchronously as it's not expected to be done frequently
-                              Initialize();
+                    {
+                        // Not initializing asynchronously as it's not expected to be done frequently
+                        Initialize();
 
-                              var disposableEnumerable = await ObjectContext.ExecuteStoreQueryAsync<TElement>(
-                                  sql, new ExecutionOptions(MergeOption.AppendOnly, streaming), cancellationToken, parameters)
-                                                                            .ConfigureAwait(
-                                                                                continueOnCapturedContext: false);
+                        var disposableEnumerable = await ObjectContext.ExecuteStoreQueryAsync<TElement>(
+                            sql, new ExecutionOptions(MergeOption.AppendOnly, streaming), cancellationToken, parameters)
+                                                                      .ConfigureAwait(
+                                                                          continueOnCapturedContext: false);
 
-                              try
-                              {
-                                  return ((IDbAsyncEnumerable<TElement>)disposableEnumerable).GetAsyncEnumerator();
-                              }
-                              catch
-                              {
-                                  // if there is a problem creating the enumerator, we should dispose
-                                  // the enumerable (if there is no problem, the enumerator will take 
-                                  // care of the dispose)
-                                  disposableEnumerable.Dispose();
-                                  throw;
-                              }
-                          });
+                        try
+                        {
+                            return ((IDbAsyncEnumerable<TElement>)disposableEnumerable).GetAsyncEnumerator();
+                        }
+                        catch
+                        {
+                            // if there is a problem creating the enumerator, we should dispose
+                            // the enumerable (if there is no problem, the enumerator will take 
+                            // care of the dispose)
+                            disposableEnumerable.Dispose();
+                            throw;
+                        }
+                    });
         }
 
 #endif
@@ -928,17 +964,18 @@ namespace System.Data.Entity.Internal
         /// <summary>
         ///     Executes the given SQL command against the database backing this context.
         /// </summary>
+        /// <param name="transactionalBehavior"> Controls the creation of a transaction for this command. </param>
         /// <param name="sql"> The SQL. </param>
         /// <param name="parameters"> The parameters. </param>
         /// <returns> The return value from the database. </returns>
-        public virtual int ExecuteSqlCommand(string sql, object[] parameters)
+        public virtual int ExecuteSqlCommand(TransactionalBehavior transactionalBehavior, string sql, object[] parameters)
         {
             DebugCheck.NotNull(sql);
             DebugCheck.NotNull(parameters);
 
             Initialize();
 
-            return ObjectContext.ExecuteStoreCommand(sql, parameters);
+            return ObjectContext.ExecuteStoreCommand(transactionalBehavior, sql, parameters);
         }
 
 #if !NET40
@@ -947,18 +984,20 @@ namespace System.Data.Entity.Internal
         ///     An asynchronous version of ExecuteSqlCommand, which
         ///     executes the given SQL command against the database backing this context.
         /// </summary>
+        /// <param name="transactionalBehavior"> Controls the creation of a transaction for this command. </param>
         /// <param name="sql"> The SQL. </param>
         /// <param name="cancellationToken"> The token to monitor for cancellation requests. </param>
         /// <param name="parameters"> The parameters. </param>
         /// <returns> A Task containing the return value from the database. </returns>
-        public virtual Task<int> ExecuteSqlCommandAsync(string sql, CancellationToken cancellationToken, object[] parameters)
+        public virtual Task<int> ExecuteSqlCommandAsync(
+            TransactionalBehavior transactionalBehavior, string sql, CancellationToken cancellationToken, object[] parameters)
         {
             DebugCheck.NotNull(sql);
             DebugCheck.NotNull(parameters);
 
             Initialize();
 
-            return ObjectContext.ExecuteStoreCommandAsync(sql, cancellationToken, parameters);
+            return ObjectContext.ExecuteStoreCommandAsync(transactionalBehavior, sql, cancellationToken, parameters);
         }
 
 #endif
@@ -1163,6 +1202,11 @@ namespace System.Data.Entity.Internal
         public virtual string ProviderName
         {
             get { return Connection.GetProviderInvariantName(); }
+        }
+
+        public DbProviderFactory ProviderFactory
+        {
+            get { return _providerFactory ?? (_providerFactory = DbProviderServices.GetProviderFactory(Connection)); }
         }
 
         /// <summary>

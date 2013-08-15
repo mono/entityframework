@@ -73,6 +73,13 @@ namespace System.Data.Entity.Core.Objects
             _state = queryState;
         }
 
+        /// <summary>
+        ///     For testing.
+        /// </summary>
+        internal ObjectQuery()
+        {
+        }
+
         #endregion
 
         #region Internal Properties
@@ -115,9 +122,8 @@ namespace System.Data.Entity.Core.Objects
 
         #endregion
 
-        /// <summary>
-        ///     Gets the Command Text (if any) for this ObjectQuery.
-        /// </summary>
+        /// <summary>Returns the command text for the query.</summary>
+        /// <returns>A string value.</returns>
         public string CommandText
         {
             get
@@ -133,19 +139,22 @@ namespace System.Data.Entity.Core.Objects
             }
         }
 
-        /// <summary>
-        ///     The context for the query, which includes the connection, cache and
-        ///     metadata. Note that only the connection property is mutable and must be
-        ///     set before a query can be executed.
-        /// </summary>
+        /// <summary>Gets the object context associated with this object query.</summary>
+        /// <returns>
+        ///     The <see cref="T:System.Data.Entity.Core.Objects.ObjectContext" /> associated with this
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Objects.ObjectQuery`1" />
+        ///     instance.
+        /// </returns>
         public ObjectContext Context
         {
             get { return _state.ObjectContext; }
         }
 
-        /// <summary>
-        ///     Allows optional control over how queried results interact with the object state manager.
-        /// </summary>
+        /// <summary>Gets or sets how objects returned from a query are added to the object context. </summary>
+        /// <returns>
+        ///     The query <see cref="T:System.Data.Entity.Core.Objects.MergeOption" />.
+        /// </returns>
         public MergeOption MergeOption
         {
             get { return _state.EffectiveMergeOption; }
@@ -166,17 +175,17 @@ namespace System.Data.Entity.Core.Objects
             set { _state.UserSpecifiedStreamingBehaviour = value; }
         }
 
-        /// <summary>
-        ///     The parameter collection for this query.
-        /// </summary>
+        /// <summary>Gets the parameter collection for this object query.</summary>
+        /// <returns>
+        ///     The parameter collection for this <see cref="T:System.Data.Entity.Core.Objects.ObjectQuery`1" />.
+        /// </returns>
         public ObjectParameterCollection Parameters
         {
             get { return _state.EnsureParameters(); }
         }
 
-        /// <summary>
-        ///     Defines whether the query plan should be cached.
-        /// </summary>
+        /// <summary>Gets or sets a value that indicates whether the query plan should be cached.</summary>
+        /// <returns>A value that indicates whether the query plan should be cached.</returns>
         public bool EnablePlanCaching
         {
             get { return _state.PlanCachingEnabled; }
@@ -188,19 +197,18 @@ namespace System.Data.Entity.Core.Objects
 
         #region Public Methods
 
-        /// <summary>
-        ///     Get the provider-specific command text used to execute this query and parameter information.
-        /// </summary>
+        /// <summary>Returns the commands to execute against the data source.</summary>
+        /// <returns>A string that represents the commands that the query executes against the data source.</returns>
         [Browsable(false)]
         public string ToTraceString()
         {
             return _state.GetExecutionPlan(null).ToTraceString(Parameters);
         }
 
-        /// <summary>
-        ///     This method returns information about the result type of the ObjectQuery.
-        /// </summary>
-        /// <returns> The TypeMetadata that describes the shape of the query results. </returns>
+        /// <summary>Returns information about the result type of the query.</summary>
+        /// <returns>
+        ///     A <see cref="T:System.Data.Entity.Core.Metadata.Edm.TypeUsage" /> value that contains information about the result type of the query.
+        /// </returns>
         [SuppressMessage("Microsoft.Design", "CA1024:UsePropertiesWhereAppropriate")]
         public TypeUsage GetResultType()
         {
@@ -233,12 +241,16 @@ namespace System.Data.Entity.Core.Objects
             return _resultType;
         }
 
-        /// <summary>
-        ///     This method allows explicit query evaluation with a specified merge
-        ///     option which will override the merge option property.
-        /// </summary>
-        /// <param name="mergeOption"> The MergeOption to use when executing the query. </param>
-        /// <returns> An enumerable for the ObjectQuery results. </returns>
+        /// <summary>Executes the untyped object query with the specified merge option.</summary>
+        /// <returns>
+        ///     An <see cref="T:System.Data.Entity.Core.Objects.ObjectResult`1" /> that contains a collection of entity objects returned by the query.
+        /// </returns>
+        /// <param name="mergeOption">
+        ///     The <see cref="T:System.Data.Entity.Core.Objects.MergeOption" /> to use when executing the query. The default is
+        ///     <see
+        ///         cref="F:System.Data.Entity.Core.Objects.MergeOption.AppendOnly" />
+        ///     .
+        /// </param>
         public ObjectResult Execute(MergeOption mergeOption)
         {
             EntityUtil.CheckArgumentMergeOption(mergeOption);
@@ -248,26 +260,39 @@ namespace System.Data.Entity.Core.Objects
 #if !NET40
 
         /// <summary>
-        ///     An asynchronous version of Execute, which
-        ///     allows explicit query evaluation with a specified merge
+        ///     Asynchronously allows explicit query evaluation with a specified merge
         ///     option which will override the merge option property.
         /// </summary>
+        /// <remarks>
+        ///     Multiple active operations on the same context instance are not supported.  Use 'await' to ensure
+        ///     that any asynchronous operations have completed before calling another method on this context.
+        /// </remarks>
         /// <param name="mergeOption"> The MergeOption to use when executing the query. </param>
-        /// <param name="cancellationToken"> The token to monitor for cancellation requests. </param>
-        /// <returns> A Task containing an enumerable for the ObjectQuery results. </returns>
+        /// <returns>
+        ///     A task that represents the asynchronous operation.
+        ///     The task result contains an enumerable for the ObjectQuery results.
+        /// </returns>
         public Task<ObjectResult> ExecuteAsync(MergeOption mergeOption)
         {
             return ExecuteAsync(mergeOption, CancellationToken.None);
         }
 
         /// <summary>
-        ///     An asynchronous version of Execute, which
-        ///     allows explicit query evaluation with a specified merge
+        ///     Asynchronously allows explicit query evaluation with a specified merge
         ///     option which will override the merge option property.
         /// </summary>
+        /// <remarks>
+        ///     Multiple active operations on the same context instance are not supported.  Use 'await' to ensure
+        ///     that any asynchronous operations have completed before calling another method on this context.
+        /// </remarks>
         /// <param name="mergeOption"> The MergeOption to use when executing the query. </param>
-        /// <param name="cancellationToken"> The token to monitor for cancellation requests. </param>
-        /// <returns> A Task containing an enumerable for the ObjectQuery results. </returns>
+        /// <param name="cancellationToken">
+        ///     A <see cref="CancellationToken" /> to observe while waiting for the task to complete.
+        /// </param>
+        /// <returns>
+        ///     A task that represents the asynchronous operation.
+        ///     The task result contains an enumerable for the ObjectQuery results.
+        /// </returns>
         public Task<ObjectResult> ExecuteAsync(MergeOption mergeOption, CancellationToken cancellationToken)
         {
             EntityUtil.CheckArgumentMergeOption(mergeOption);
@@ -279,9 +304,11 @@ namespace System.Data.Entity.Core.Objects
         #region IListSource implementation
 
         /// <summary>
-        ///     IListSource.GetList implementation
+        ///     Returns the collection as an <see cref="T:System.Collections.IList" /> used for data binding.
         /// </summary>
-        /// <returns> IList interface over the data to bind </returns>
+        /// <returns>
+        ///     An <see cref="T:System.Collections.IList" /> of entity objects.
+        /// </returns>
         [SuppressMessage("Microsoft.Design", "CA1033:InterfaceMethodsShouldBeCallableByChildTypes")]
         IList IListSource.GetList()
         {
@@ -327,10 +354,10 @@ namespace System.Data.Entity.Core.Objects
 
         #region IEnumerable implementation
 
-        /// <summary>
-        ///     Returns an <see cref="IEnumerator" /> which when enumerated will execute the given SQL query against the database.
-        /// </summary>
-        /// <returns> The query results. </returns>
+        /// <summary>Returns an enumerator that iterates through a collection.</summary>
+        /// <returns>
+        ///     An <see cref="T:System.Collections.IEnumerator" /> that can be used to iterate through the collection.
+        /// </returns>
         [SuppressMessage("Microsoft.Design", "CA1033:InterfaceMethodsShouldBeCallableByChildTypes")]
         IEnumerator IEnumerable.GetEnumerator()
         {

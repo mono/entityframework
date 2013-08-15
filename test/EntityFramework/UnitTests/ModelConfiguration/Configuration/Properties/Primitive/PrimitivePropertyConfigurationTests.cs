@@ -1,20 +1,93 @@
 // Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
-namespace System.Data.Entity.ModelConfiguration.Configuration.UnitTests
+namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primitive
 {
     using System.Collections.Generic;
     using System.ComponentModel.DataAnnotations.Schema;
     using System.Data.Entity.Core.Mapping;
     using System.Data.Entity.Core.Metadata.Edm;
-    
-    using System.Data.Entity.ModelConfiguration.Configuration.Properties.Primitive;
     using System.Data.Entity.ModelConfiguration.Edm;
-    using System.Data.Entity.ModelConfiguration.Edm.Db;
     using System.Data.Entity.Resources;
     using Xunit;
 
     public abstract class PrimitivePropertyConfigurationTests : TestBase
     {
+        [Fact]
+        public void HasParameterName_should_set_name_on_inner_configuration()
+        {
+            var innerConfiguration = CreateConfiguration();
+            var primitivePropertyConfiguration 
+                = new PrimitivePropertyConfiguration<PrimitivePropertyConfiguration>(innerConfiguration);
+
+            primitivePropertyConfiguration.HasParameterName("Foo");
+
+            Assert.Equal("Foo", innerConfiguration.ParameterName);
+        }
+
+        [Fact]
+        public void ConfigureFunctionParameters_should_configure_parameter_names()
+        {
+            var configuration = CreateConfiguration();
+
+            configuration.ParameterName = "Foo";
+
+            var functionParameter1
+                = new FunctionParameter(
+                    "P1",
+                    TypeUsage.Create(PrimitiveType.GetEdmPrimitiveType(PrimitiveTypeKind.String)),
+                    ParameterMode.In);
+
+            var functionParameter2
+                = new FunctionParameter(
+                    "P2",
+                    TypeUsage.Create(PrimitiveType.GetEdmPrimitiveType(PrimitiveTypeKind.String)),
+                    ParameterMode.In);
+
+            new EdmFunction(
+                "F", "N", DataSpace.SSpace,
+                new EdmFunctionPayload
+                    {
+                        Parameters = new[] { functionParameter1, functionParameter2 }
+                    });
+
+            configuration.ConfigureFunctionParameters(new[] { functionParameter1, functionParameter2 });
+
+            Assert.Equal("Foo", functionParameter1.Name);
+            Assert.Equal("Foo", functionParameter2.Name);
+        }
+
+        [Fact]
+        public void ConfigureFunctionParameters_should_uniquify_parameter_names()
+        {
+            var configuration = CreateConfiguration();
+
+            configuration.ParameterName = "Foo";
+
+            var functionParameter1
+                = new FunctionParameter(
+                    "P1",
+                    TypeUsage.Create(PrimitiveType.GetEdmPrimitiveType(PrimitiveTypeKind.String)),
+                    ParameterMode.In);
+
+            var functionParameter2
+                = new FunctionParameter(
+                    "Foo",
+                    TypeUsage.Create(PrimitiveType.GetEdmPrimitiveType(PrimitiveTypeKind.String)),
+                    ParameterMode.In);
+
+            new EdmFunction(
+                "F", "N", DataSpace.SSpace,
+                new EdmFunctionPayload
+                {
+                    Parameters = new[] { functionParameter1, functionParameter2 }
+                });
+
+            configuration.ConfigureFunctionParameters(new[] { functionParameter1 });
+
+            Assert.Equal("Foo", functionParameter1.Name);
+            Assert.Equal("Foo1", functionParameter2.Name);
+        }
+
         [Fact]
         public void HasColumnOrder_should_throw_when_argument_out_of_range()
         {

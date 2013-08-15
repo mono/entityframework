@@ -2,9 +2,11 @@
 
 namespace System.Data.Entity.Core.Metadata.Edm
 {
+    using System.Collections.Generic;
     using System.Data.Entity.Utilities;
     using System.Diagnostics;
     using System.Diagnostics.CodeAnalysis;
+    using System.Linq;
     using System.Threading;
 
     /// <summary>
@@ -41,17 +43,28 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     Returns the kind of the type
+        ///     Gets the built-in type kind for this <see cref="T:System.Data.Entity.Core.Metadata.Edm.ComplexType" />.
         /// </summary>
+        /// <returns>
+        ///     A <see cref="T:System.Data.Entity.Core.Metadata.Edm.BuiltInTypeKind" /> object that represents the built-in type kind for this
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Metadata.Edm.ComplexType" />
+        ///     .
+        /// </returns>
         public override BuiltInTypeKind BuiltInTypeKind
         {
             get { return BuiltInTypeKind.ComplexType; }
         }
 
         /// <summary>
-        ///     Returns just the properties from the collection
-        ///     of members on this type
+        ///     Gets the list of properties for this <see cref="T:System.Data.Entity.Core.Metadata.Edm.ComplexType" />.
         /// </summary>
+        /// <returns>
+        ///     A collection of type <see cref="T:System.Data.Entity.Core.Metadata.Edm.ReadOnlyMetadataCollection`1" /> that contains the list of properties for this
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Metadata.Edm.ComplexType" />
+        ///     .
+        /// </returns>
         public virtual ReadOnlyMetadataCollection<EdmProperty> Properties
         {
             get
@@ -74,6 +87,48 @@ namespace System.Data.Entity.Core.Metadata.Edm
                 Helper.IsEdmProperty(member),
                 "Only members of type Property may be added to ComplexType.");
         }
+
+        /// <summary>
+        ///     Creates a new instance of the <see cref="ComplexType " /> type.
+        /// </summary>
+        /// <param name="name">The name of the complex type.</param>
+        /// <param name="namespaceName">The namespace of the complex type.</param>
+        /// <param name="dataSpace">The dataspace to which the complex type belongs to.</param>
+        /// <param name="members">Members of the complex type.</param>
+        /// <param name="metadataProperties">Metadata properties to be associated with the instance.</param>
+        /// <exception cref="System.ArgumentNullException">Thrown if either name, namespace or members argument is null.</exception>
+        /// <returns>
+        ///     A new instance a the <see cref="ComplexType " /> type.
+        /// </returns>
+        /// <notes>
+        ///     The newly created <see cref="ComplexType " /> will be read only.
+        /// </notes>
+        public static ComplexType Create(
+            string name,
+            string namespaceName,
+            DataSpace dataSpace,
+            IEnumerable<EdmMember> members,
+            IEnumerable<MetadataProperty> metadataProperties)
+        {
+            Check.NotNull(name, "name");
+            Check.NotNull(namespaceName, "namespaceName");
+            Check.NotNull(members, "members");
+
+            var complexType = new ComplexType(name, namespaceName, dataSpace);
+
+            foreach (var member in members)
+            {
+                complexType.AddMember(member);
+            }
+
+            if (metadataProperties != null)
+            {
+                complexType.AddMetadataProperties(metadataProperties.ToList());
+            }
+
+            complexType.SetReadOnly();
+            return complexType;
+        }
     }
 
     [SuppressMessage("Microsoft.Maintainability", "CA1501:AvoidExcessiveInheritance")]
@@ -93,7 +148,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
         /// </summary>
         /// <param name="clrType"> The CLR type to construct from </param>
         internal ClrComplexType(Type clrType, string cspaceNamespaceName, string cspaceTypeName)
-            : base(Check.NotNull(clrType, "clrType").Name, clrType.Namespace ?? string.Empty,
+            : base(Check.NotNull(clrType, "clrType").Name, clrType.NestingNamespace() ?? string.Empty,
                 DataSpace.OSpace)
         {
             DebugCheck.NotEmpty(cspaceNamespaceName);

@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
-namespace System.Data.Entity.ModelConfiguration.Edm.Db.UnitTests
+namespace System.Data.Entity.ModelConfiguration.Edm.Db
 {
     using System.Collections.Generic;
     using System.Data.Entity.Core.Metadata.Edm;
@@ -15,11 +15,11 @@ namespace System.Data.Entity.ModelConfiguration.Edm.Db.UnitTests
 
             Assert.Equal("Foo", namedItems.UniquifyIdentifier("Foo"));
 
-            namedItems.Add(new EntitySet("ES1", null, "Foo", null, new EntityType()));
+            namedItems.Add(new EntitySet("ES1", null, "Foo", null, new EntityType("E", "N", DataSpace.CSpace)));
 
             Assert.Equal("Foo1", namedItems.UniquifyIdentifier("Foo"));
 
-            namedItems.Add(new EntitySet("ES2", null, "Foo1", null, new EntityType()));
+            namedItems.Add(new EntitySet("ES2", null, "Foo1", null, new EntityType("E", "N", DataSpace.CSpace)));
 
             Assert.Equal("Foo2", namedItems.UniquifyIdentifier("Foo"));
         }

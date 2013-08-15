@@ -7,6 +7,7 @@ namespace System.Data.Entity
     using System.Configuration;
     using System.Data.Common;
     using System.Data.Entity.Config;
+    using System.Data.Entity.Core.Common.CommandTrees;
     using System.Data.Entity.Core.EntityClient;
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Core.Objects;
@@ -26,6 +27,86 @@ namespace System.Data.Entity
         static TestBase()
         {
             DbConfiguration.SetConfiguration(new FunctionalTestsConfiguration());
+
+            // Uncomment below to log all test generated SQL to the console.
+            //Interception.AddInterceptor(new LoggingInterceptor());
+        }
+
+        public class LoggingInterceptor : IDbCommandInterceptor
+        {
+            public void NonQueryExecuting(DbCommand command, DbInterceptionContext interceptionContext)
+            {
+                CommandExecuting(command);
+            }
+
+            public int NonQueryExecuted(DbCommand command, int result, DbInterceptionContext interceptionContext)
+            {
+                return result;
+            }
+
+            public void ReaderExecuting(DbCommand command, CommandBehavior behavior, DbInterceptionContext interceptionContext)
+            {
+                CommandExecuting(command);
+            }
+
+            public DbDataReader ReaderExecuted(DbCommand command, CommandBehavior behavior, DbDataReader result, DbInterceptionContext interceptionContext)
+            {
+                return result;
+            }
+
+            public void ScalarExecuting(DbCommand command, DbInterceptionContext interceptionContext)
+            {
+                CommandExecuting(command);
+            }
+
+            public object ScalarExecuted(DbCommand command, object result, DbInterceptionContext interceptionContext)
+            {
+                return result;
+            }
+
+            public void AsyncNonQueryExecuting(DbCommand command, DbInterceptionContext interceptionContext)
+            {
+                CommandExecuting(command);
+            }
+
+            public Task<int> AsyncNonQueryExecuted(DbCommand command, Task<int> result, DbInterceptionContext interceptionContext)
+            {
+                return result;
+            }
+
+            public void AsyncReaderExecuting(DbCommand command, CommandBehavior behavior, DbInterceptionContext interceptionContext)
+            {
+                CommandExecuting(command);
+            }
+
+            public Task<DbDataReader> AsyncReaderExecuted(DbCommand command, CommandBehavior behavior, Task<DbDataReader> result, DbInterceptionContext interceptionContext)
+            {
+                return result;
+            }
+
+            public void AsyncScalarExecuting(DbCommand command, DbInterceptionContext interceptionContext)
+            {
+                CommandExecuting(command);
+            }
+
+            public Task<object> AsyncScalarExecuted(DbCommand command, Task<object> result, DbInterceptionContext interceptionContext)
+            {
+                return result;
+            }
+
+            private void CommandExecuting(DbCommand command)
+            {
+                Console.WriteLine(command.CommandText);
+
+                foreach (DbParameter parameter in command.Parameters)
+                {
+                    Console.WriteLine(
+                        "  " + parameter.ParameterName + ": "
+                        + (parameter.Value == DBNull.Value ? "NULL" : parameter.Value));
+                }
+
+                Console.WriteLine();
+            }
         }
 
         internal DbDatabaseMapping BuildMapping(DbModelBuilder modelBuilder)
@@ -65,7 +146,7 @@ namespace System.Data.Entity
                         new DataColumn("Name", typeof(string)),
                         new DataColumn("Description", typeof(string)),
                         new DataColumn("InvariantName", typeof(string)),
-                        new DataColumn("AssemblyQualifiedName", typeof(string)),
+                        new DataColumn("AssemblyQualifiedName", typeof(string))
                     });
 
             var row = table.NewRow();
@@ -273,7 +354,7 @@ namespace System.Data.Entity
         /// <param name="userId"> User ID to be use when connecting to SQL Server. </param>
         /// <param name="password"> Password for the SQL Server account. </param>
         /// <param name="persistSecurityInfo">
-        ///     Indicates if security-sensitive information is not returned as part of the 
+        ///     Indicates if security-sensitive information is not returned as part of the
         ///     connection if the connection has ever been opened.
         /// </param>
         /// <returns> The connection string. </returns>
@@ -394,13 +475,62 @@ namespace System.Data.Entity
         }
 
         /// <summary>
-        ///     Returns a simple SQL Server connection string to the local machine using attached database for the given context type.
+        ///     Returns a simple SQL Server connection string to the local machine for the given context type
+        ///     with the specified credentials.
+        /// </summary>
+        /// <param name="userId"> User ID to be use when connecting to SQL Server. </param>
+        /// <param name="password"> Password for the SQL Server account. </param>
+        /// <param name="persistSecurityInfo">
+        ///     Indicates if security-sensitive information is not returned as part of the 
+        ///     connection if the connection has ever been opened.
+        /// </param>
+        /// <returns> The connection string. </returns>
+        public static string SimpleConnectionStringWithCredentials<TContext>(
+            string userId,
+            string password,
+            bool persistSecurityInfo = false)
+            where TContext : DbContext
+        {
+            return ModelHelpers.SimpleConnectionStringWithCredentials<TContext>(
+                userId,
+                password,
+                persistSecurityInfo);
+        }
+
+        /// <summary>
+        ///     Returns a simple SQL Server connection string to the local machine using attached database
+        ///     for the given context type.
         /// </summary>
         /// <typeparam name="TContext"> The type of the context to create a connection string for. </typeparam>
+        /// <param name="useInitialCatalog">
+        ///     Specifies whether the InitialCatalog should be created from the context name.
+        /// </param>
         /// <returns> The connection string. </returns>
-        protected static string SimpleAttachConnectionString<TContext>() where TContext : DbContext
+        protected static string SimpleAttachConnectionString<TContext>(bool useInitialCatalog = true) where TContext : DbContext
         {
-            return ModelHelpers.SimpleAttachConnectionString<TContext>();
+            return ModelHelpers.SimpleAttachConnectionString<TContext>(useInitialCatalog);
+        }
+
+        /// <summary>
+        ///     Returns a simple SQL Server connection string to the local machine using an attachable database
+        ///     for the given context type with the specified credentials.
+        /// </summary>
+        /// <param name="userId"> User ID to be use when connecting to SQL Server. </param>
+        /// <param name="password"> Password for the SQL Server account. </param>
+        /// <param name="persistSecurityInfo">
+        ///     Indicates if security-sensitive information is not returned as part of the 
+        ///     connection if the connection has ever been opened.
+        /// </param>
+        /// <returns> The connection string. </returns>
+        public static string SimpleAttachConnectionStringWithCredentials<TContext>(
+            string userId,
+            string password,
+            bool persistSecurityInfo = false) where TContext : DbContext
+        {
+            return ModelHelpers.SimpleAttachConnectionStringWithCredentials<TContext>(
+                userId,
+                password,
+                persistSecurityInfo);
         }
 
         /// <summary>

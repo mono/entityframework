@@ -60,8 +60,14 @@ namespace System.Data.Entity.Core.Metadata.Edm
         private readonly TypeUsage _typeUsage;
 
         /// <summary>
-        ///     Returns the kind of the type
+        ///     Gets the built-in type kind for this <see cref="T:System.Data.Entity.Core.Metadata.Edm.MetadataProperty" />.
         /// </summary>
+        /// <returns>
+        ///     A <see cref="T:System.Data.Entity.Core.Metadata.Edm.BuiltInTypeKind" /> object that represents the built-in type kind for this
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Metadata.Edm.MetadataProperty" />
+        ///     .
+        /// </returns>
         public override BuiltInTypeKind BuiltInTypeKind
         {
             get { return BuiltInTypeKind.MetadataProperty; }
@@ -76,8 +82,11 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     Gets/Sets the name of this MetadataProperty
+        ///     Gets the name of this <see cref="T:System.Data.Entity.Core.Metadata.Edm.MetadataProperty" />.
         /// </summary>
+        /// <returns>
+        ///     The name of this <see cref="T:System.Data.Entity.Core.Metadata.Edm.MetadataProperty" />.
+        /// </returns>
         [MetadataProperty(PrimitiveTypeKind.String, false)]
         public virtual string Name
         {
@@ -89,8 +98,11 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     Gets/Sets the value of this MetadataProperty
+        ///     Gets the value of this <see cref="T:System.Data.Entity.Core.Metadata.Edm.MetadataProperty" />.
         /// </summary>
+        /// <returns>
+        ///     The value of this <see cref="T:System.Data.Entity.Core.Metadata.Edm.MetadataProperty" />.
+        /// </returns>
         /// <exception cref="System.InvalidOperationException">Thrown if the MetadataProperty instance is in readonly state</exception>
         [MetadataProperty(typeof(Object), false)]
         public virtual object Value
@@ -117,9 +129,17 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     Gets/Sets the TypeUsage object describing the type of this attribute
+        ///     Gets the instance of the <see cref="T:System.Data.Entity.Core.Metadata.Edm.TypeUsage" /> class that contains both the type of this
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Metadata.Edm.MetadataProperty" />
+        ///     and facets for the type.
         /// </summary>
-        /// <exception cref="System.ArgumentNullException">Thrown if value passed into setter is null</exception>
+        /// <returns>
+        ///     A <see cref="T:System.Data.Entity.Core.Metadata.Edm.TypeUsage" /> object that contains both the type of this
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Metadata.Edm.MetadataProperty" />
+        ///     and facets for the type.
+        /// </returns>
         /// <exception cref="System.InvalidOperationException">Thrown if the MetadataProperty instance is in readonly state</exception>
         [MetadataProperty(BuiltInTypeKind.TypeUsage, false)]
         public TypeUsage TypeUsage
@@ -141,11 +161,33 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     Returns the kind of the attribute
+        ///     Gets the value of this <see cref="T:System.Data.Entity.Core.Metadata.Edm.PropertyKind" />.
         /// </summary>
+        /// <returns>
+        ///     The value of this <see cref="T:System.Data.Entity.Core.Metadata.Edm.PropertyKind" />.
+        /// </returns>
         public PropertyKind PropertyKind
         {
             get { return _propertyKind; }
+        }
+
+        /// <summary>
+        ///     The factory method for constructing the MetadataProperty object.
+        /// </summary>
+        /// <param name="name">The name of the metadata property.</param>
+        /// <param name="typeUsage">The type usage of the metadata property.</param>
+        /// <param name="value">The value of the metadata property.</param>
+        /// <exception cref="System.NullReferenceException">
+        ///     Thrown <paramref name="typeUsage" /> is <c>null</c>.
+        /// </exception>
+        /// <notes>The newly created MetadataProperty will be read only.</notes>
+        public static MetadataProperty Create(string name, TypeUsage typeUsage, object value)
+        {
+            Check.NotNull(typeUsage, "typeUsage");
+
+            var metadataProperty = new MetadataProperty(name, typeUsage, value);
+            metadataProperty.SetReadOnly();
+            return metadataProperty;
         }
     }
 }

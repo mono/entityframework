@@ -2,7 +2,7 @@
 
 namespace System.Data.Entity
 {
-    using System.Collections.ObjectModel;
+    using System.Collections.Generic;
     using System.ComponentModel;
     using System.Data.Entity.Infrastructure;
     using System.Data.Entity.Internal;
@@ -72,8 +72,7 @@ namespace System.Data.Entity
 #if !NET40
 
         /// <summary>
-        ///     An asynchronous version of Find, which
-        ///     finds an entity with the given primary key values.
+        ///     Asynchronously finds an entity with the given primary key values.
         ///     If an entity with the given primary key values exists in the context, then it is
         ///     returned immediately without making a request to the store.  Otherwise, a request
         ///     is made to the store for an entity with the given primary key values and this entity,
@@ -83,10 +82,14 @@ namespace System.Data.Entity
         /// <remarks>
         ///     The ordering of composite key values is as defined in the EDM, which is in turn as defined in
         ///     the designer, by the Code First fluent API, or by the DataMember attribute.
+        ///     Multiple active operations on the same context instance are not supported.  Use 'await' to ensure
+        ///     that any asynchronous operations have completed before calling another method on this context.
         /// </remarks>
-        /// <param name="cancellationToken"> The token to monitor for cancellation requests. </param>
+        /// <param name="cancellationToken">
+        ///     A <see cref="CancellationToken" /> to observe while waiting for the task to complete.
+        /// </param>
         /// <param name="keyValues"> The values of the primary key for the entity to be found. </param>
-        /// <returns> A Task containing the entity found, or null. </returns>
+        /// <returns> A task that represents the asynchronous find operation. The task result contains the entity found, or null. </returns>
         /// <exception cref="InvalidOperationException">Thrown if multiple entities exist in the context with the primary key values given.</exception>
         /// <exception cref="InvalidOperationException">Thrown if the type of entity is not part of the data model for this context.</exception>
         /// <exception cref="InvalidOperationException">Thrown if the types of the key values do not match the types of the key values for the entity type to be found.</exception>
@@ -102,19 +105,8 @@ namespace System.Data.Entity
 
         #region Data binding/local view
 
-        /// <summary>
-        ///     Gets an <see cref="ObservableCollection{T}" /> that represents a local view of all Added, Unchanged,
-        ///     and Modified entities in this set.  This local view will stay in sync as entities are added or
-        ///     removed from the context.  Likewise, entities added to or removed from the local view will automatically
-        ///     be added to or removed from the context.
-        /// </summary>
-        /// <remarks>
-        ///     This property can be used for data binding by populating the set with data, for example by using the Load
-        ///     extension method, and then binding to the local data through this property.  For WPF bind to this property
-        ///     directly.  For Windows Forms bind to the result of calling ToBindingList on this property
-        /// </remarks>
-        /// <value> The local view. </value>
-        public ObservableCollection<TEntity> Local
+        /// <inheritdoc/>
+        public DbLocalView<TEntity> Local
         {
             get { return _internalSet.Local; }
         }
@@ -123,19 +115,7 @@ namespace System.Data.Entity
 
         #region Attach/Add/Remove
 
-        /// <summary>
-        ///     Attaches the given entity to the context underlying the set.  That is, the entity is placed
-        ///     into the context in the Unchanged state, just as if it had been read from the database.
-        /// </summary>
-        /// <param name="entity"> The entity to attach. </param>
-        /// <returns> The entity. </returns>
-        /// <remarks>
-        ///     Attach is used to repopulate a context with an entity that is known to already exist in the database.
-        ///     SaveChanges will therefore not attempt to insert an attached entity into the database because
-        ///     it is assumed to already be there.
-        ///     Note that entities that are already in the context in some other state will have their state set
-        ///     to Unchanged.  Attach is a no-op if the entity is already in the context in the Unchanged state.
-        /// </remarks>
+        /// <inheritdoc/>
         public TEntity Attach(TEntity entity)
         {
             Check.NotNull(entity, "entity");
@@ -144,16 +124,7 @@ namespace System.Data.Entity
             return entity;
         }
 
-        /// <summary>
-        ///     Adds the given entity to the context underlying the set in the Added state such that it will
-        ///     be inserted into the database when SaveChanges is called.
-        /// </summary>
-        /// <param name="entity"> The entity to add. </param>
-        /// <returns> The entity. </returns>
-        /// <remarks>
-        ///     Note that entities that are already in the context in some other state will have their state set
-        ///     to Added.  Add is a no-op if the entity is already in the context in the Added state.
-        /// </remarks>
+        /// <inheritdoc/>
         public TEntity Add(TEntity entity)
         {
             Check.NotNull(entity, "entity");
@@ -163,17 +134,30 @@ namespace System.Data.Entity
         }
 
         /// <summary>
-        ///     Marks the given entity as Deleted such that it will be deleted from the database when SaveChanges
-        ///     is called.  Note that the entity must exist in the context in some other state before this method
-        ///     is called.
+        ///     Adds the given collection of entities into context underlying the set with each entity being put into
+        ///     the Added state such that it will be inserted into the database when SaveChanges is called.
         /// </summary>
-        /// <param name="entity"> The entity to remove. </param>
-        /// <returns> The entity. </returns>
+        /// <param name="entities">The collection of entities to add.</param>
+        /// <returns>
+        ///     The collection of entities.
+        /// </returns>
         /// <remarks>
-        ///     Note that if the entity exists in the context in the Added state, then this method
-        ///     will cause it to be detached from the context.  This is because an Added entity is assumed not to
-        ///     exist in the database such that trying to delete it does not make sense.
+        ///     Note that if <see cref="DbContextConfiguration.AutoDetectChangesEnabled" /> is set to true (which is
+        ///     the default), then DetectChanges will be called once before adding any entities and will not be called
+        ///     again. This means that in some situations AddRange may perform significantly better than calling
+        ///     Add multiple times would do.
+        ///     Note that entities that are already in the context in some other state will have their state set to
+        ///     Added.  AddRange is a no-op for entities that are already in the context in the Added state.
         /// </remarks>
+        public IEnumerable<TEntity> AddRange(IEnumerable<TEntity> entities)
+        {
+            Check.NotNull(entities, "entities");
+
+            _internalSet.AddRange(entities);
+            return entities;
+        }
+
+        /// <inheritdoc/>
         public TEntity Remove(TEntity entity)
         {
             Check.NotNull(entity, "entity");
@@ -182,31 +166,41 @@ namespace System.Data.Entity
             return entity;
         }
 
+        /// <summary>
+        ///     Removes the given collection of entities from the context underlying the set with each entity being put into
+        ///     the Deleted state such that it will be deleted from the database when SaveChanges is called.
+        /// </summary>
+        /// <param name="entities">The collection of entities to delete.</param>
+        /// <returns>
+        ///     The collection of entities.
+        /// </returns>
+        /// <remarks>
+        ///     Note that if <see cref="DbContextConfiguration.AutoDetectChangesEnabled" /> is set to true (which is
+        ///     the default), then DetectChanges will be called once before delete any entities and will not be called
+        ///     again. This means that in some situations RemoveRange may perform significantly better than calling
+        ///     Remove multiple times would do.
+        ///     Note that if any entity exists in the context in the Added state, then this method
+        ///     will cause it to be detached from the context.  This is because an Added entity is assumed not to
+        ///     exist in the database such that trying to delete it does not make sense.
+        /// </remarks>
+        public IEnumerable<TEntity> RemoveRange(IEnumerable<TEntity> entities)
+        {
+            Check.NotNull(entities, "entities");
+
+            _internalSet.RemoveRange(entities);
+            return entities;
+        }
+
         #endregion
 
         #region Create
 
-        /// <summary>
-        ///     Creates a new instance of an entity for the type of this set.
-        ///     Note that this instance is NOT added or attached to the set.
-        ///     The instance returned will be a proxy if the underlying context is configured to create
-        ///     proxies and the entity type meets the requirements for creating a proxy.
-        /// </summary>
-        /// <returns> The entity instance, which may be a proxy. </returns>
+        /// <inheritdoc/>
         public TEntity Create()
         {
             return _internalSet.Create();
         }
-
-        /// <summary>
-        ///     Creates a new instance of an entity for the type of this set or for a type derived
-        ///     from the type of this set.
-        ///     Note that this instance is NOT added or attached to the set.
-        ///     The instance returned will be a proxy if the underlying context is configured to create
-        ///     proxies and the entity type meets the requirements for creating a proxy.
-        /// </summary>
-        /// <typeparam name="TDerivedEntity"> The type of entity to create. </typeparam>
-        /// <returns> The entity instance, which may be a proxy. </returns>
+        /// <inheritdoc/>
         public TDerivedEntity Create<TDerivedEntity>() where TDerivedEntity : class, TEntity
         {
             return (TDerivedEntity)_internalSet.Create(typeof(TDerivedEntity));
@@ -265,7 +259,9 @@ namespace System.Data.Entity
             Check.NotEmpty(sql, "sql");
             Check.NotNull(parameters, "parameters");
 
-            return new DbSqlQuery<TEntity>(new InternalSqlSetQuery(_internalSet, sql, /*isNoTracking:*/ false, /*streaming:*/ false, parameters));
+            return
+                new DbSqlQuery<TEntity>(
+                    new InternalSqlSetQuery(_internalSet, sql, /*isNoTracking:*/ false, /*streaming:*/ false, parameters));
         }
 
         #endregion

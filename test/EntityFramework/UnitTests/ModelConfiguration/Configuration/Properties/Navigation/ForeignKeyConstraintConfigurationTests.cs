@@ -1,9 +1,8 @@
 // Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
-namespace System.Data.Entity.ModelConfiguration.Configuration.UnitTests
+namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigation
 {
     using System.Data.Entity.Core.Metadata.Edm;
-    using System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigation;
     using System.Data.Entity.ModelConfiguration.Configuration.Types;
     using System.Data.Entity.ModelConfiguration.Edm;
     using System.Data.Entity.Resources;
@@ -36,15 +35,15 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.UnitTests
         {
             var mockPropertyInfo = new MockPropertyInfo(typeof(int), "P");
             var constraintConfiguration = new ForeignKeyConstraintConfiguration(new[] { mockPropertyInfo.Object });
-            var entityType = new EntityType();
+            var entityType = new EntityType("E", "N", DataSpace.CSpace);
             var property1 = EdmProperty.Primitive("P", PrimitiveType.GetEdmPrimitiveType(PrimitiveTypeKind.String));
 
             entityType.AddMember(property1);
             var property = property1;
             property.SetClrPropertyInfo(mockPropertyInfo);
-            var associationType = new AssociationType();
+            var associationType = new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace);
             associationType.SourceEnd = new AssociationEndMember("S", entityType);
-            associationType.TargetEnd = new AssociationEndMember("T", new EntityType());
+            associationType.TargetEnd = new AssociationEndMember("T", new EntityType("E", "N", DataSpace.CSpace));
 
             constraintConfiguration.Configure(
                 associationType, associationType.SourceEnd, new EntityTypeConfiguration(typeof(object)));
@@ -57,16 +56,16 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.UnitTests
         {
             var mockPropertyInfo = new MockPropertyInfo(typeof(int), "P");
             var constraintConfiguration = new ForeignKeyConstraintConfiguration(new[] { mockPropertyInfo.Object });
-            var entityType = new EntityType();
+            var entityType = new EntityType("E", "N", DataSpace.CSpace);
             var property1 = EdmProperty.Primitive("P", PrimitiveType.GetEdmPrimitiveType(PrimitiveTypeKind.String));
 
             entityType.AddMember(property1);
             var property = property1;
             property.Nullable = true;
             property.SetClrPropertyInfo(mockPropertyInfo);
-            var associationType = new AssociationType();
+            var associationType = new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace);
             associationType.SourceEnd = new AssociationEndMember("S", entityType);
-            associationType.TargetEnd = new AssociationEndMember("T", new EntityType());
+            associationType.TargetEnd = new AssociationEndMember("T", new EntityType("E", "N", DataSpace.CSpace));
             associationType.TargetEnd.RelationshipMultiplicity = RelationshipMultiplicity.One;
 
             constraintConfiguration.Configure(
@@ -85,7 +84,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.UnitTests
                         {
                             new MockPropertyInfo(typeof(int), "P").Object
                         });
-            var associationType = new AssociationType();
+            var associationType = new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace);
 
             Assert.Equal(
                 Strings.ForeignKeyPropertyNotFound("P", "T"),
@@ -93,10 +92,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.UnitTests
                     () => constraintConfiguration.Configure(
                         associationType,
                         new AssociationEndMember(
-                              "E", new EntityType
-                                       {
-                                           Name = "T"
-                                       })
+                              "E", new EntityType("T", "N", DataSpace.CSpace))
                               , new EntityTypeConfiguration(typeof(object)))).Message);
         }
     }

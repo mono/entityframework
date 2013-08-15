@@ -3,6 +3,7 @@
 namespace System.Data.Entity.SqlServer
 {
     using System.Collections.Generic;
+    using System.Data.Entity.Infrastructure;
     using System.Data.Entity.Spatial;
     using System.Data.Entity.SqlServer.Resources;
     using System.Data.Entity.SqlServer.Utilities;
@@ -11,6 +12,7 @@ namespace System.Data.Entity.SqlServer
     using System.Reflection;
 
     [Serializable]
+    [DbProviderName(SqlProviderServices.ProviderInvariantName)]
     internal class SqlSpatialServices : DbSpatialServices
     {
         internal static readonly SqlSpatialServices Instance = new SqlSpatialServices();
@@ -24,9 +26,6 @@ namespace System.Data.Entity.SqlServer
         {
         }
 
-        /// <summary>
-        /// For testing.
-        /// </summary>
         public SqlSpatialServices(SqlTypesAssemblyLoader loader)
         {
             _loader = loader;
@@ -61,7 +60,7 @@ namespace System.Data.Entity.SqlServer
                             {
                                 _otherSpatialServices = new Dictionary<string, SqlSpatialServices>(1);
                             }
-                            services = new SqlSpatialServicesForConversions(sqlAssembly);
+                            services = new SqlSpatialServices(new SqlTypesAssemblyLoader(sqlAssembly));
                             _otherSpatialServices.Add(assembly.FullName, services);
                         }
                         else
@@ -74,7 +73,7 @@ namespace System.Data.Entity.SqlServer
             return services != null;
         }
 
-        public virtual SqlTypesAssembly SqlTypes
+        public SqlTypesAssembly SqlTypes
         {
             get { return (_loader ?? SqlTypesAssemblyLoader.DefaultInstance).GetSqlTypesAssembly(); }
         }

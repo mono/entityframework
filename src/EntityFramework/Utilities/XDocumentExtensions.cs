@@ -2,6 +2,7 @@
 
 namespace System.Data.Entity.Utilities
 {
+    using System.Data.Entity.Core.Mapping;
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Infrastructure;
     using System.Data.Entity.Migrations.Edm;
@@ -10,24 +11,35 @@ namespace System.Data.Entity.Utilities
 
     internal static class XDocumentExtensions
     {
-        public static StoreItemCollection GetStoreItemCollection(this XDocument model, out DbProviderInfo providerInfo)
+        public static StorageMappingItemCollection GetStorageMappingItemCollection(
+            this XDocument model, out DbProviderInfo providerInfo)
         {
             DebugCheck.NotNull(model);
 
-            var schemaElement = model.Descendants(EdmXNames.Ssdl.SchemaNames).Single();
+            var edmItemCollection
+                = new EdmItemCollection(
+                    new[]
+                        {
+                            model.Descendants(EdmXNames.Csdl.SchemaNames).Single().CreateReader()
+                        });
+
+            var ssdlSchemaElement = model.Descendants(EdmXNames.Ssdl.SchemaNames).Single();
 
             providerInfo = new DbProviderInfo(
-                schemaElement.ProviderAttribute(),
-                schemaElement.ProviderManifestTokenAttribute());
+                ssdlSchemaElement.ProviderAttribute(),
+                ssdlSchemaElement.ProviderManifestTokenAttribute());
 
-            return new StoreItemCollection(new[] { schemaElement.CreateReader() });
-        }
+            var storeItemCollection
+                = new StoreItemCollection(
+                    new[]
+                        {
+                            ssdlSchemaElement.CreateReader()
+                        });
 
-        public static bool HasSystemOperations(this XDocument model)
-        {
-            DebugCheck.NotNull(model);
-
-            return model.Descendants().Attributes(EdmXNames.IsSystemName).Any();
+            return new StorageMappingItemCollection(
+                edmItemCollection,
+                storeItemCollection,
+                new[] { new XElement(model.Descendants(EdmXNames.Msl.MappingNames).Single()).CreateReader() });
         }
     }
 }

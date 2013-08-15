@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
+// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 namespace System.Data.Entity.Core.Objects.Internal
 {
@@ -6,10 +6,12 @@ namespace System.Data.Entity.Core.Objects.Internal
     using System.Collections.ObjectModel;
     using System.Data.Entity.Utilities;
     using System.Diagnostics;
-#if !NET40
     using System.Diagnostics.CodeAnalysis;
     using System.Threading;
     using System.Threading.Tasks;
+
+#if !NET40
+
 #endif
 
     internal class BufferedDataRecord
@@ -22,7 +24,7 @@ namespace System.Data.Entity.Core.Objects.Internal
         private readonly string[] _dataTypeNames;
         private readonly Type[] _fieldTypes;
         private readonly string[] _columnNames;
-        private readonly FieldNameLookup _fieldNameLookup;
+        private readonly Lazy<FieldNameLookup> _fieldNameLookup;
 
         public BufferedDataRecord(List<object[]> resultSet, string[] dataTypeNames, Type[] fieldTypes, string[] columnNames)
         {
@@ -38,7 +40,8 @@ namespace System.Data.Entity.Core.Objects.Internal
             _dataTypeNames = dataTypeNames;
             _fieldTypes = fieldTypes;
             _columnNames = columnNames;
-            _fieldNameLookup = new FieldNameLookup(new ReadOnlyCollection<string>(columnNames), -1);
+            _fieldNameLookup = new Lazy<FieldNameLookup>(
+                () => new FieldNameLookup(new ReadOnlyCollection<string>(columnNames), -1), isThreadSafe: false);
         }
 
         public object this[string name]
@@ -72,12 +75,12 @@ namespace System.Data.Entity.Core.Objects.Internal
         {
             return GetFieldValue<byte>(ordinal);
         }
-        
+
         public char GetChar(int ordinal)
         {
             return GetFieldValue<char>(ordinal);
         }
-        
+
         public DateTime GetDateTime(int ordinal)
         {
             return GetFieldValue<DateTime>(ordinal);
@@ -185,7 +188,7 @@ namespace System.Data.Entity.Core.Objects.Internal
 
         public int GetOrdinal(string name)
         {
-            return _fieldNameLookup.GetOrdinal(name);
+            return _fieldNameLookup.Value.GetOrdinal(name);
         }
 
         public bool Read()

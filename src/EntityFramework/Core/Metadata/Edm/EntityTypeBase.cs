@@ -6,6 +6,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
     using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
     using System.Diagnostics;
+    using System.Linq; 
 
     /// <summary>
     ///     Represents the Entity Type
@@ -29,9 +30,10 @@ namespace System.Data.Entity.Core.Metadata.Edm
             _keyMembers = new ReadOnlyMetadataCollection<EdmMember>(new MetadataCollection<EdmMember>());
         }
 
-        /// <summary>
-        ///     Returns the list of all the key members for this entity type
-        /// </summary>
+        /// <summary>Gets the list of all the key members for the current entity or relationship type.</summary>
+        /// <returns>
+        ///     A <see cref="T:System.Data.Entity.Core.Metadata.Edm.ReadOnlyMetadataCollection`1" /> object that represents the list of key members for the current entity or relationship type.
+        /// </returns>
         [MetadataProperty(BuiltInTypeKind.EdmMember, true)]
         public virtual ReadOnlyMetadataCollection<EdmMember> KeyMembers
         {
@@ -50,6 +52,11 @@ namespace System.Data.Entity.Core.Metadata.Edm
 
                 return _keyMembers;
             }
+        }
+
+        public virtual ReadOnlyMetadataCollection<EdmProperty> KeyProperties
+        {
+            get { return new ReadOnlyMetadataCollection<EdmProperty>(KeyMembers.Cast<EdmProperty>().ToList()); }
         }
 
         /// <summary>
@@ -178,6 +185,13 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
 
             base.RemoveMember(member);
+        }
+
+        internal override void NotifyItemIdentityChanged()
+        {
+            base.NotifyItemIdentityChanged();
+
+            _keyMembers.Source.InvalidateCache();
         }
     }
 }

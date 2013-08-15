@@ -59,8 +59,7 @@ namespace System.Data.Entity
 #if !NET40
 
         /// <summary>
-        ///     An asynchronous version of Find, which
-        ///     finds an entity with the given primary key values.
+        ///     Asynchronously finds an entity with the given primary key values.
         ///     If an entity with the given primary key values exists in the context, then it is
         ///     returned immediately without making a request to the store.  Otherwise, a request
         ///     is made to the store for an entity with the given primary key values and this entity,
@@ -70,17 +69,22 @@ namespace System.Data.Entity
         /// <remarks>
         ///     The ordering of composite key values is as defined in the EDM, which is in turn as defined in
         ///     the designer, by the Code First fluent API, or by the DataMember attribute.
+        ///     Multiple active operations on the same context instance are not supported.  Use 'await' to ensure
+        ///     that any asynchronous operations have completed before calling another method on this context.
         /// </remarks>
         /// <param name="keyValues"> The values of the primary key for the entity to be found. </param>
-        /// <returns> A Task containing the entity found, or null. </returns>
+        /// <returns> A task that represents the asynchronous find operation. The task result contains the entity found, or null. </returns>
+        /// <exception cref="InvalidOperationException">Thrown if multiple entities exist in the context with the primary key values given.</exception>
+        /// <exception cref="InvalidOperationException">Thrown if the type of entity is not part of the data model for this context.</exception>
+        /// <exception cref="InvalidOperationException">Thrown if the types of the key values do not match the types of the key values for the entity type to be found.</exception>
+        /// <exception cref="InvalidOperationException">Thrown if the context has been disposed.</exception>
         public Task<object> FindAsync(params object[] keyValues)
         {
             return FindAsync(CancellationToken.None, keyValues);
         }
 
         /// <summary>
-        ///     An asynchronous version of Find, which
-        ///     finds an entity with the given primary key values.
+        ///     Asynchronously finds an entity with the given primary key values.
         ///     If an entity with the given primary key values exists in the context, then it is
         ///     returned immediately without making a request to the store.  Otherwise, a request
         ///     is made to the store for an entity with the given primary key values and this entity,
@@ -90,10 +94,18 @@ namespace System.Data.Entity
         /// <remarks>
         ///     The ordering of composite key values is as defined in the EDM, which is in turn as defined in
         ///     the designer, by the Code First fluent API, or by the DataMember attribute.
+        ///     Multiple active operations on the same context instance are not supported.  Use 'await' to ensure
+        ///     that any asynchronous operations have completed before calling another method on this context.
         /// </remarks>
-        /// <param name="cancellationToken"> The token to monitor for cancellation requests. </param>
+        /// <param name="cancellationToken">
+        ///     A <see cref="CancellationToken" /> to observe while waiting for the task to complete.
+        /// </param>
         /// <param name="keyValues"> The values of the primary key for the entity to be found. </param>
-        /// <returns> A Task containing the entity found, or null. </returns>
+        /// <returns> A task that represents the asynchronous find operation. The task result contains the entity found, or null. </returns>
+        /// <exception cref="InvalidOperationException">Thrown if multiple entities exist in the context with the primary key values given.</exception>
+        /// <exception cref="InvalidOperationException">Thrown if the type of entity is not part of the data model for this context.</exception>
+        /// <exception cref="InvalidOperationException">Thrown if the types of the key values do not match the types of the key values for the entity type to be found.</exception>
+        /// <exception cref="InvalidOperationException">Thrown if the context has been disposed.</exception>
         public abstract Task<object> FindAsync(CancellationToken cancellationToken, params object[] keyValues);
 
 #endif
@@ -160,6 +172,30 @@ namespace System.Data.Entity
         }
 
         /// <summary>
+        ///     Adds the given collection of entities into context underlying the set with each entity being put into
+        ///     the Added state such that it will be inserted into the database when SaveChanges is called.
+        /// </summary>
+        /// <param name="entities">The collection of entities to add.</param>
+        /// <returns>
+        ///     The collection of entities.
+        /// </returns>
+        /// <remarks>
+        ///     Note that if <see cref="DbContextConfiguration.AutoDetectChangesEnabled" /> is set to true (which is
+        ///     the default), then DetectChanges will be called once before adding any entities and will not be called
+        ///     again. This means that in some situations AddRange may perform significantly better than calling
+        ///     Add multiple times would do.
+        ///     Note that entities that are already in the context in some other state will have their state set to
+        ///     Added.  AddRange is a no-op for entities that are already in the context in the Added state.
+        /// </remarks>
+        public IEnumerable AddRange(IEnumerable entities)
+        {
+            Check.NotNull(entities, "entities");
+
+            InternalSet.AddRange(entities);
+            return entities;
+        }
+
+        /// <summary>
         ///     Marks the given entity as Deleted such that it will be deleted from the database when SaveChanges
         ///     is called.  Note that the entity must exist in the context in some other state before this method
         ///     is called.
@@ -177,6 +213,31 @@ namespace System.Data.Entity
 
             InternalSet.Remove(entity);
             return entity;
+        }
+
+        /// <summary>
+        ///     Removes the given collection of entities from the context underlying the set with each entity being put into
+        ///     the Deleted state such that it will be deleted from the database when SaveChanges is called.
+        /// </summary>
+        /// <param name="entities">The collection of entities to delete.</param>
+        /// <returns>
+        ///     The collection of entities.
+        /// </returns>
+        /// <remarks>
+        ///     Note that if <see cref="DbContextConfiguration.AutoDetectChangesEnabled" /> is set to true (which is
+        ///     the default), then DetectChanges will be called once before delete any entities and will not be called
+        ///     again. This means that in some situations RemoveRange may perform significantly better than calling
+        ///     Remove multiple times would do.
+        ///     Note that if any entity exists in the context in the Added state, then this method
+        ///     will cause it to be detached from the context.  This is because an Added entity is assumed not to
+        ///     exist in the database such that trying to delete it does not make sense.
+        /// </remarks>
+        public IEnumerable RemoveRange(IEnumerable entities)
+        {
+            Check.NotNull(entities, "entities");
+
+            InternalSet.RemoveRange(entities);
+            return entities;
         }
 
         #endregion

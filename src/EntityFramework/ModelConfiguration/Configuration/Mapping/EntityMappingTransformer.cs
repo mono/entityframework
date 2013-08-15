@@ -189,11 +189,11 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Mapping
                         var dependentColumns = propertyMappings.Select(pm => pm.ColumnProperty);
 
                         dependentTableInfos = new[]
-                                                  {
-                                                      new KeyValuePair
-                                                          <EntityType, IEnumerable<EdmProperty>>(
-                                                          dependentTable, dependentColumns)
-                                                  };
+                            {
+                                new KeyValuePair
+                                    <EntityType, IEnumerable<EdmProperty>>(
+                                    dependentTable, dependentColumns)
+                            };
                     }
 
                     foreach (var tableInfo in dependentTableInfos)
@@ -260,10 +260,10 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Mapping
                 = new ForeignKeyBuilder(
                     database,
                     database.EntityTypes.SelectMany(t => t.ForeignKeyBuilders).UniquifyName(fk.Name))
-                      {
-                          PrincipalTable = fk.PrincipalTable,
-                          DeleteAction = fk.DeleteAction
-                      };
+                    {
+                        PrincipalTable = fk.PrincipalTable,
+                        DeleteAction = fk.DeleteAction
+                    };
 
             var dependentColumns
                 = GetDependentColumns(fk.DependentColumns, toTable.Properties);
@@ -333,7 +333,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Mapping
             DebugCheck.NotNull(fromTable);
             DebugCheck.NotNull(toTable);
 
-            foreach (var column in fromTable.DeclaredKeyProperties)
+            foreach (var column in fromTable.KeyProperties)
             {
                 FindAllForeignKeyConstraintsForColumn(fromTable, toTable, column)
                     .ToArray()
@@ -357,7 +357,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Mapping
             DebugCheck.NotNull(fromTable);
             DebugCheck.NotNull(toTable);
 
-            foreach (var column in fromTable.DeclaredKeyProperties)
+            foreach (var column in fromTable.KeyProperties)
             {
                 FindAllForeignKeyConstraintsForColumn(fromTable, toTable, column)
                     .ToArray()
@@ -594,8 +594,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Mapping
                                         a.AssociationSet.ElementType.TargetEnd.GetEntityType() == entityType)).ToArray())
             {
                 AssociationEndMember _, dependentEnd;
-                if (
-                    !associationSetMapping.AssociationSet.ElementType.TryGuessPrincipalAndDependentEnds(
+                if (!associationSetMapping.AssociationSet.ElementType.TryGuessPrincipalAndDependentEnds(
                         out _, out dependentEnd))
                 {
                     dependentEnd = associationSetMapping.AssociationSet.ElementType.TargetEnd;
@@ -613,6 +612,25 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Mapping
                         dependentMapping,
                         databaseMapping.Database.GetEntitySet(toTable),
                         useExistingColumns);
+                
+                    var principalMapping
+                        = dependentMapping == associationSetMapping.TargetEndMapping
+                              ? associationSetMapping.SourceEndMapping
+                              : associationSetMapping.TargetEndMapping;
+
+                    principalMapping.PropertyMappings.Each(
+                        pm =>
+                            {
+                                if (pm.ColumnProperty.DeclaringType != toTable)
+                                {
+                                    pm.ColumnProperty
+                                        = toTable.Properties.Single(
+                                            p => string.Equals(
+                                                p.GetPreferredName(),
+                                                pm.ColumnProperty.GetPreferredName(),
+                                                StringComparison.Ordinal));
+                                }
+                            });
                 }
             }
         }
@@ -639,9 +657,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Mapping
                         entityType.Name,
                         principalTable.Name,
                         dependentTable.Name))
-                      {
-                          PrincipalTable = principalTable
-                      };
+                    {
+                        PrincipalTable = principalTable
+                    };
 
             dependentTable.AddForeignKey(foreignKeyConstraintMetadata);
 

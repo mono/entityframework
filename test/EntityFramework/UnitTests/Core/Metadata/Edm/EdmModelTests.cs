@@ -5,6 +5,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
     using System.Data.Entity.ModelConfiguration;
     using System.Data.Entity.Resources;
     using System.Data.Entity.SqlServer;
+    using System.Data.Entity.Utilities;
     using System.Linq;
     using Xunit;
 
@@ -41,10 +42,13 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         [Fact]
-        public void EdmModel_version_correctly()
+        public void EdmModel_version_set_correctly()
         {
-            Assert.Equal(2.0, new EdmModel(DataSpace.CSpace, 2.0).Version);
-            Assert.Equal(2.0, new EdmModel(new EntityContainer("MyContainer", DataSpace.CSpace), 2.0).Version);
+            Assert.Equal(XmlConstants.StoreVersionForV2, new EdmModel(DataSpace.CSpace, XmlConstants.StoreVersionForV2).SchemaVersion);
+
+            Assert.Equal(
+                XmlConstants.StoreVersionForV2,
+                new EdmModel(new EntityContainer("MyContainer", DataSpace.CSpace), XmlConstants.StoreVersionForV2).SchemaVersion);
         }
 
         [Fact]
@@ -69,7 +73,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
         {
             var model = new EdmModel(DataSpace.CSpace);
 
-            model.AddItem(new EntityType());
+            model.AddItem(new EntityType("E", "N", DataSpace.CSpace));
 
             Assert.Throws<ModelValidationException>(() => model.Validate());
         }

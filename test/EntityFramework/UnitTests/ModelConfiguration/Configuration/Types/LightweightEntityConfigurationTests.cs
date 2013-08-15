@@ -411,13 +411,13 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types
         }
 
         [Fact]
-        public void MapToFunctions_configures_when_unset()
+        public void MapToStoredProcedures_configures_when_unset()
         {
             var type = new MockType();
             var innerConfig = new EntityTypeConfiguration(type);
             var config = new LightweightEntityConfiguration(type, () => innerConfig);
 
-            config.MapToFunctions();
+            config.MapToStoredProcedures();
 
             Assert.True(innerConfig.IsMappedToFunctions);
         }
@@ -430,6 +430,34 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types
             var config = new LightweightEntityConfiguration(type, () => innerConfig);
 
             Assert.Same(type.Object, config.ClrType);
+        }
+
+        [Fact]
+        public void MapToStoredProcedures_with_no_args_should_add_configuration()
+        {
+            var type = new MockType();
+            var innerConfig = new EntityTypeConfiguration(type);
+            var config = new LightweightEntityConfiguration(type, () => innerConfig);
+
+            config.MapToStoredProcedures();
+
+            Assert.True(innerConfig.IsMappedToFunctions);
+        }
+
+        [Fact]
+        public void MapToStoredProcedures_with_action_should_invoke_and_add_configuration()
+        {
+            var type = new MockType();
+            var innerConfig = new EntityTypeConfiguration(type);
+            var config = new LightweightEntityConfiguration(type, () => innerConfig);
+
+            LightweightModificationFunctionsConfiguration configuration = null;
+
+            config.MapToStoredProcedures(c => configuration = c);
+
+            Assert.Same(
+                configuration.Configuration,
+                innerConfig.ModificationFunctionsConfiguration);
         }
 
         private class LocalEntityType

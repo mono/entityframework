@@ -1,4 +1,4 @@
-// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
+﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 namespace System.Data.Entity.Core.Query.PlanCompiler
 {
@@ -213,7 +213,7 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
         ///     WHEN W1 THEN T1
         ///     WHEN W2 THEN T2 ...
         ///     ELSE (CASE
-        ///     WHEN WN1 THEN TN1, �
+        ///     WHEN WN1 THEN TN1, …
         ///     ELSE E)
         ///     Is transformed into
         ///     CASE
@@ -592,22 +592,22 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
         #region All ScalarOp Rules
 
         internal static readonly Rule[] Rules = new Rule[]
-                                                    {
-                                                        Rule_SimplifyCase,
-                                                        Rule_FlattenCase,
-                                                        Rule_LikeOverConstants,
-                                                        Rule_EqualsOverConstant,
-                                                        Rule_AndOverConstantPred1,
-                                                        Rule_AndOverConstantPred2,
-                                                        Rule_OrOverConstantPred1,
-                                                        Rule_OrOverConstantPred2,
-                                                        Rule_NotOverConstantPred,
-                                                        Rule_IsNullOverConstant,
-                                                        Rule_IsNullOverNullSentinel,
-                                                        Rule_IsNullOverNull,
-                                                        Rule_NullCast,
-                                                        Rule_IsNullOverVarRef,
-                                                    };
+            {
+                Rule_SimplifyCase,
+                Rule_FlattenCase,
+                Rule_LikeOverConstants,
+                Rule_EqualsOverConstant,
+                Rule_AndOverConstantPred1,
+                Rule_AndOverConstantPred2,
+                Rule_OrOverConstantPred1,
+                Rule_OrOverConstantPred2,
+                Rule_NotOverConstantPred,
+                Rule_IsNullOverConstant,
+                Rule_IsNullOverNullSentinel,
+                Rule_IsNullOverNull,
+                Rule_NullCast,
+                Rule_IsNullOverVarRef,
+            };
 
         #endregion
     }

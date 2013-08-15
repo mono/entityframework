@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
-namespace System.Data.Entity.ModelConfiguration.Edm.UnitTests
+namespace System.Data.Entity.ModelConfiguration.Edm
 {
     using System.Data.Entity.Core.Metadata.Edm;
     using Xunit;
@@ -10,7 +10,7 @@ namespace System.Data.Entity.ModelConfiguration.Edm.UnitTests
         [Fact]
         public void IsMany_should_return_true_when_end_kind_is_many()
         {
-            var associationEnd = new AssociationEndMember("E", new EntityType())
+            var associationEnd = new AssociationEndMember("E", new EntityType("E", "N", DataSpace.CSpace))
                                      {
                                          RelationshipMultiplicity = RelationshipMultiplicity.Many
                                      };
@@ -21,7 +21,7 @@ namespace System.Data.Entity.ModelConfiguration.Edm.UnitTests
         [Fact]
         public void IsOptional_should_return_true_when_end_kind_is_optional()
         {
-            var associationEnd = new AssociationEndMember("E", new EntityType())
+            var associationEnd = new AssociationEndMember("E", new EntityType("E", "N", DataSpace.CSpace))
                                      {
                                          RelationshipMultiplicity = RelationshipMultiplicity.ZeroOrOne
                                      };
@@ -32,7 +32,7 @@ namespace System.Data.Entity.ModelConfiguration.Edm.UnitTests
         [Fact]
         public void IsRequired_should_return_true_when_end_kind_is_required()
         {
-            var associationEnd = new AssociationEndMember("E", new EntityType())
+            var associationEnd = new AssociationEndMember("E", new EntityType("E", "N", DataSpace.CSpace))
                                      {
                                          RelationshipMultiplicity = RelationshipMultiplicity.One
                                      };

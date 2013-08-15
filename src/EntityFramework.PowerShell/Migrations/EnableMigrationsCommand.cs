@@ -4,6 +4,7 @@ namespace System.Data.Entity.Migrations
 {
     using System.Collections.Generic;
     using System.Data.Entity.Migrations.Extensions;
+    using System.Data.Entity.Migrations.Infrastructure;
     using System.Data.Entity.Migrations.Resources;
     using System.Data.Entity.Migrations.Utilities;
     using System.Data.Entity.Utilities;
@@ -79,6 +80,11 @@ namespace System.Data.Entity.Migrations
                             tokens["contextType"] = qualifiedContextTypeName.Replace('+', '.');
                         }
 
+                        if (Path.IsPathRooted(migrationsDirectory))
+                        {
+                            throw new MigrationsException(Strings.MigrationsDirectoryParamIsRooted(migrationsDirectory));
+                        }
+
                         var path = Path.Combine(migrationsDirectory, fileName);
                         var absolutePath = Path.Combine(project.GetProjectDir(), path);
 
@@ -134,7 +140,7 @@ namespace System.Data.Entity.Migrations
             // We need to load the users assembly in another AppDomain because you can't reload an assembly
             // If the load fails, it will block any further loads of the users assembly in the AppDomain
             // If the load succeeds, the loaded assembly is cached and can't be refreshed if the user changes their code and recompiles
-            using (var facade = GetFacade())
+            using (var facade = GetFacade(null, useContextWorkingDirectory: true))
             {
                 return facade.GetContextType(contextTypeName);
             }

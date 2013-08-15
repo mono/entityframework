@@ -1,8 +1,7 @@
 // Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
-namespace System.Data.Entity.ModelConfiguration.Configuration.UnitTests
+namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigation
 {
-    using System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigation;
     using System.Data.Entity.Resources;
     using System.Linq;
     using Xunit;
@@ -54,14 +53,10 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.UnitTests
                               .HasForeignKey(d => d.ToString())).Message);
         }
 
-        #region Test Fixtures
-
         private class D
         {
             public int? Fk1 { get; set; }
             public int? Fk2 { get; set; }
         }
-
-        #endregion
     }
 }

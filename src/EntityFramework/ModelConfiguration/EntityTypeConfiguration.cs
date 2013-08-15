@@ -49,9 +49,9 @@ namespace System.Data.Entity.ModelConfiguration
             return Configuration.Property(
                 lambdaExpression.GetComplexPropertyAccess(),
                 () => new TPrimitivePropertyConfiguration
-                          {
-                              OverridableConfigurationParts = OverridableConfigurationParts.None
-                          });
+                    {
+                        OverridableConfigurationParts = OverridableConfigurationParts.None
+                    });
         }
 
         /// <summary>
@@ -86,19 +86,37 @@ namespace System.Data.Entity.ModelConfiguration
             return this;
         }
 
+        /// <summary>
+        ///     Excludes a property from the model so that it will not be mapped to the database.
+        /// </summary>
+        /// <typeparam name="TProperty"> The type of the property to be ignored. </typeparam>
+        /// <param name="propertyExpression"> A lambda expression representing the property to be configured. C#: t => t.MyProperty VB.Net: Function(t) t.MyProperty </param>
+        [SuppressMessage("Microsoft.Design", "CA1006:DoNotNestGenericTypesInMemberSignatures")]
+        [SuppressMessage("Microsoft.Design", "CA1011:ConsiderPassingBaseTypesAsParameters")]
+        public EntityTypeConfiguration<TEntityType> Ignore<TProperty>(Expression<Func<TEntityType, TProperty>> propertyExpression)
+        {
+            Check.NotNull(propertyExpression, "propertyExpression");
+
+            Configuration.Ignore(propertyExpression.GetSimplePropertyAccess().Single());
+
+            return this;
+        }
+
         #region Map API
 
         /// <summary>
         ///     Configures the table name that this entity type is mapped to.
         /// </summary>
         /// <param name="tableName"> The name of the table. </param>
-        public void ToTable(string tableName)
+        public EntityTypeConfiguration<TEntityType> ToTable(string tableName)
         {
             Check.NotEmpty(tableName, "tableName");
 
             var databaseName = DatabaseName.Parse(tableName);
 
             _entityTypeConfiguration.ToTable(databaseName.Name, databaseName.Schema);
+
+            return this;
         }
 
         /// <summary>
@@ -106,22 +124,24 @@ namespace System.Data.Entity.ModelConfiguration
         /// </summary>
         /// <param name="tableName"> The name of the table. </param>
         /// <param name="schemaName"> The database schema of the table. </param>
-        public void ToTable(string tableName, string schemaName)
+        public EntityTypeConfiguration<TEntityType> ToTable(string tableName, string schemaName)
         {
             Check.NotEmpty(tableName, "tableName");
 
             _entityTypeConfiguration.ToTable(tableName, schemaName);
+
+            return this;
         }
 
-        public EntityTypeConfiguration<TEntityType> MapToFunctions()
+        public EntityTypeConfiguration<TEntityType> MapToStoredProcedures()
         {
-            _entityTypeConfiguration.MapToFunctions();
+            _entityTypeConfiguration.MapToStoredProcedures();
 
             return this;
         }
 
         [SuppressMessage("Microsoft.Design", "CA1006:DoNotNestGenericTypesInMemberSignatures")]
-        public EntityTypeConfiguration<TEntityType> MapToFunctions(
+        public EntityTypeConfiguration<TEntityType> MapToStoredProcedures(
             Action<ModificationFunctionsConfiguration<TEntityType>> modificationFunctionMappingConfigurationAction)
         {
             Check.NotNull(modificationFunctionMappingConfigurationAction, "modificationFunctionMappingConfigurationAction");
@@ -131,7 +151,7 @@ namespace System.Data.Entity.ModelConfiguration
 
             modificationFunctionMappingConfigurationAction(modificationFunctionMappingConfiguration);
 
-            _entityTypeConfiguration.MapToFunctions(modificationFunctionMappingConfiguration.Configuration);
+            _entityTypeConfiguration.MapToStoredProcedures(modificationFunctionMappingConfiguration.Configuration);
 
             return this;
         }

@@ -10,6 +10,7 @@ namespace System.Data.Entity.Utilities
     using System.Diagnostics;
     using System.Diagnostics.CodeAnalysis;
     using System.Linq;
+    using System.Reflection;
 
     internal static class TypeExtensions
     {
@@ -141,7 +142,6 @@ namespace System.Data.Entity.Utilities
             DebugCheck.NotNull(type);
 
             return !(type.IsGenericTypeDefinition
-                     || type.IsNested
                      || type.IsPointer
                      || type == typeof(object)
                      || typeof(ComplexObject).IsAssignableFrom(type)
@@ -181,7 +181,9 @@ namespace System.Data.Entity.Utilities
 
             exceptionFactory = exceptionFactory ?? (s => new InvalidOperationException(s));
 
-            if (type.GetConstructor(Type.EmptyTypes) == null)
+            if (type.GetConstructor(
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                null, Type.EmptyTypes, null) == null)
             {
                 throw exceptionFactory(Strings.CreateInstance_NoParameterlessConstructor(type));
             }
@@ -196,7 +198,7 @@ namespace System.Data.Entity.Utilities
                 throw exceptionFactory(Strings.CreateInstance_GenericType(type));
             }
 
-            return (T)Activator.CreateInstance(type);
+            return (T)Activator.CreateInstance(type, nonPublic: true);
         }
 
         public static bool IsValidEdmScalarType(this Type type)
@@ -207,6 +209,32 @@ namespace System.Data.Entity.Utilities
 
             PrimitiveType _;
             return type.IsPrimitiveType(out _) || type.IsEnum;
+        }
+
+        public static string NestingNamespace(this Type type)
+        {
+            DebugCheck.NotNull(type);
+
+            if (!type.IsNested)
+            {
+                return type.Namespace;
+            }
+
+            var fullName = type.FullName;
+
+            return fullName.Substring(0, fullName.Length - type.Name.Length - 1).Replace('+', '.');
+        }
+
+        public static string FullNameWithNesting(this Type type)
+        {
+            DebugCheck.NotNull(type);
+
+            if (!type.IsNested)
+            {
+                return type.FullName;
+            }
+
+            return type.FullName.Replace('+', '.');
         }
     }
 }

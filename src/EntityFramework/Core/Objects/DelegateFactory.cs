@@ -2,9 +2,11 @@
 
 namespace System.Data.Entity.Core.Objects
 {
+    using System.Collections.Generic;
     using System.Data.Entity.Core.Common.Utils;
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Core.Objects.DataClasses;
+    using System.Data.Entity.Infrastructure;
     using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
     using System.Diagnostics;
@@ -116,7 +118,8 @@ namespace System.Data.Entity.Core.Objects
             DebugCheck.NotNull(declaringType);
             DebugCheck.NotNull(navigationProperty);
 
-            var setMethod = navigationProperty.GetSetMethod(true);
+            var propertyInfoForSet = navigationProperty.GetPropertyInfoForSet();
+            var setMethod = propertyInfoForSet.GetSetMethod(nonPublic: true);
 
             if (setMethod == null)
             {
@@ -138,7 +141,7 @@ namespace System.Data.Entity.Core.Objects
 
             return Expression.Lambda<Action<object, object>>(
                 Expression.Assign(
-                    Expression.Property(Expression.Convert(entityParameter, declaringType), navigationProperty),
+                    Expression.Property(Expression.Convert(entityParameter, declaringType), propertyInfoForSet),
                     Expression.Convert(targetParameter, navigationProperty.PropertyType)), entityParameter, targetParameter).Compile();
         }
 
@@ -158,6 +161,27 @@ namespace System.Data.Entity.Core.Objects
                 throw new InvalidOperationException(Strings.CodeGen_ConstructorNoParameterless(type.FullName));
             }
             return ci;
+        }
+
+        /// <summary>
+        ///     Gets a new expression that uses the parameterless constructor for the specified collection type.
+        ///     For HashSet{T} will use ObjectReferenceEqualityComparer.
+        /// </summary>
+        /// <param name="type"> Type to get constructor for. </param>
+        /// <returns> Parameterless constructor for the specified type. </returns>
+        internal static NewExpression GetNewExpressionForCollectionType(Type type)
+        {
+            if (type.GetGenericTypeDefinition() == typeof(HashSet<>))
+            {
+                var constructor = type.GetConstructor(
+                    BindingFlags.Public | BindingFlags.Instance | BindingFlags.CreateInstance, null,
+                    new[] { typeof(IEqualityComparer<>).MakeGenericType(type.GetGenericArguments()) }, null);
+                return Expression.New(constructor, Expression.New(typeof(ObjectReferenceEqualityComparer)));
+            }
+            else
+            {
+                return Expression.New(GetConstructorForType(type));
+            }
         }
 
         /// <summary>
@@ -264,7 +288,7 @@ namespace System.Data.Entity.Core.Objects
         /// </exception>
         internal static Action<object, object> CreatePropertySetter(Type entityDeclaringType, PropertyInfo propertyInfo, bool allowNull)
         {
-            ValidateSetterProperty(propertyInfo);
+            var propertyInfoForSet = ValidateSetterProperty(propertyInfo);
 
             var entityParameter = Expression.Parameter(typeof(object), "entity");
             var targetParameter = Expression.Parameter(typeof(object), "target");
@@ -290,7 +314,7 @@ namespace System.Data.Entity.Core.Objects
                 Expression.IfThenElse(
                     checkValidValue,
                     Expression.Assign(
-                        Expression.Property(Expression.Convert(entityParameter, entityDeclaringType), propertyInfo),
+                        Expression.Property(Expression.Convert(entityParameter, entityDeclaringType), propertyInfoForSet),
                         Expression.Convert(targetParameter, propertyInfo.PropertyType)),
                     Expression.Call(
                         _throwSetInvalidValue,
@@ -300,11 +324,13 @@ namespace System.Data.Entity.Core.Objects
                         Expression.Constant(propertyInfo.Name))), entityParameter, targetParameter).Compile();
         }
 
-        internal static void ValidateSetterProperty(PropertyInfo propertyInfo)
+        internal static PropertyInfo ValidateSetterProperty(PropertyInfo propertyInfo)
         {
             DebugCheck.NotNull(propertyInfo);
 
-            var setterMethodInfo = propertyInfo.GetSetMethod(nonPublic: true);
+            var propertyInfoForSet = propertyInfo.GetPropertyInfoForSet();
+
+            var setterMethodInfo = propertyInfoForSet.GetSetMethod(nonPublic: true);
 
             if (setterMethodInfo == null)
             {
@@ -316,20 +342,22 @@ namespace System.Data.Entity.Core.Objects
                 throw new InvalidOperationException(Strings.CodeGen_PropertyIsStatic);
             }
 
-            if (propertyInfo.DeclaringType.IsValueType)
+            if (propertyInfoForSet.DeclaringType.IsValueType)
             {
                 throw new InvalidOperationException(Strings.CodeGen_PropertyDeclaringTypeIsValueType);
             }
 
-            if (propertyInfo.GetIndexParameters().Any())
+            if (propertyInfoForSet.GetIndexParameters().Any())
             {
                 throw new InvalidOperationException(Strings.CodeGen_PropertyIsIndexed);
             }
 
-            if (propertyInfo.PropertyType.IsPointer)
+            if (propertyInfoForSet.PropertyType.IsPointer)
             {
                 throw new InvalidOperationException(Strings.CodeGen_PropertyUnsupportedType);
             }
+
+            return propertyInfoForSet;
         }
 
         /// <summary>

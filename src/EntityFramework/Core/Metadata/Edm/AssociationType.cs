@@ -2,6 +2,7 @@
 
 namespace System.Data.Entity.Core.Metadata.Edm
 {
+    using System.Collections.Generic;
     using System.Data.Entity.Utilities;
     using System.Diagnostics;
     using System.Diagnostics.CodeAnalysis;
@@ -12,14 +13,8 @@ namespace System.Data.Entity.Core.Metadata.Edm
     ///     Represents the EDM Association Type
     /// </summary>
     [SuppressMessage("Microsoft.Maintainability", "CA1501:AvoidExcessiveInheritance")]
-    public sealed class AssociationType : RelationshipType
+    public class AssociationType : RelationshipType
     {
-        internal AssociationType()
-            : this("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace)
-        {
-            // testing only
-        }
-
         /// <summary>
         ///     Initializes a new instance of Association Type with the given name, namespace, version and ends
         /// </summary>
@@ -47,16 +42,28 @@ namespace System.Data.Entity.Core.Metadata.Edm
         private bool _isForeignKey;
 
         /// <summary>
-        ///     Returns the kind of the type
+        ///     Gets the built-in type kind for this <see cref="T:System.Data.Entity.Core.Metadata.Edm.AssociationType" />.
         /// </summary>
+        /// <returns>
+        ///     A <see cref="T:System.Data.Entity.Core.Metadata.Edm.BuiltInTypeKind" /> object that represents the built-in type kind for this
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Metadata.Edm.AssociationType" />
+        ///     .
+        /// </returns>
         public override BuiltInTypeKind BuiltInTypeKind
         {
             get { return BuiltInTypeKind.AssociationType; }
         }
 
         /// <summary>
-        ///     Returns the list of ends for this association type
+        ///     Gets the list of ends for this <see cref="T:System.Data.Entity.Core.Metadata.Edm.AssociationType" />.
         /// </summary>
+        /// <returns>
+        ///     A collection of type <see cref="T:System.Data.Entity.Core.Metadata.Edm.ReadOnlyMetadataCollection`1" /> that contains the list of ends for this
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Metadata.Edm.AssociationType" />
+        ///     .
+        /// </returns>
         public ReadOnlyMetadataCollection<AssociationEndMember> AssociationEndMembers
         {
             get
@@ -64,13 +71,13 @@ namespace System.Data.Entity.Core.Metadata.Edm
                 Debug.Assert(
                     IsReadOnly,
                     "this is a wrapper around this.Members, don't call it during metadata loading, only call it after the metadata is set to read-only");
-            
+
                 if (null == _associationEndMembers)
                 {
                     Interlocked.CompareExchange(
                         ref _associationEndMembers,
                         new FilteredReadOnlyMetadataCollection<AssociationEndMember, EdmMember>(
-                            Members, Helper.IsAssociationEndMember), null);
+                            KeyMembers, Helper.IsAssociationEndMember), null);
                 }
                 return _associationEndMembers;
             }
@@ -137,17 +144,22 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     Returns the list of constraints for this association type
+        ///     Gets the list of constraints for this <see cref="T:System.Data.Entity.Core.Metadata.Edm.AssociationType" />.
         /// </summary>
+        /// <returns>
+        ///     A collection of type <see cref="T:System.Data.Entity.Core.Metadata.Edm.ReadOnlyMetadataCollection`1" /> that contains the list of constraints for this
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Metadata.Edm.AssociationType" />
+        ///     .
+        /// </returns>
         [MetadataProperty(BuiltInTypeKind.ReferentialConstraint, true)]
         public ReadOnlyMetadataCollection<ReferentialConstraint> ReferentialConstraints
         {
             get { return _referentialConstraints; }
         }
 
-        /// <summary>
-        ///     Indicates whether this is a foreign key relationship.
-        /// </summary>
+        /// <summary>Gets the Boolean property value that specifies whether the column is a foreign key.</summary>
+        /// <returns>A Boolean value that specifies whether the column is a foreign key. If true, the column is a foreign key. If false (default), the column is not a foreign key.</returns>
         [MetadataProperty(PrimitiveTypeKind.Boolean, false)]
         public bool IsForeignKey
         {
@@ -187,6 +199,60 @@ namespace System.Data.Entity.Core.Metadata.Edm
         internal void AddReferentialConstraint(ReferentialConstraint referentialConstraint)
         {
             ReferentialConstraints.Source.Add(referentialConstraint);
+        }
+
+        /// <summary>
+        ///     Creates a read-only AssociationType instance from the specified parameters.
+        /// </summary>
+        /// <param name="name">The name of the association type.</param>
+        /// <param name="namespaceName">The namespace of the association type.</param>
+        /// <param name="foreignKey">Flag that indicates a foreign key (FK) relationship.</param>
+        /// <param name="dataSpace">The data space for the association type.</param>
+        /// <param name="sourceEnd">The source association end member.</param>
+        /// <param name="targetEnd">The target association end member.</param>
+        /// <param name="constraint">A referential constraint.</param>
+        /// <param name="metadataProperties">Metadata properties to be associated with the instance.</param>
+        /// <returns>The newly created AssociationType instance.</returns>
+        /// <exception cref="System.ArgumentException">The specified name is null or empty.</exception>
+        /// <exception cref="System.ArgumentException">The specified namespace is null or empty.</exception>
+        public static AssociationType Create(
+            string name,
+            string namespaceName,
+            bool foreignKey,
+            DataSpace dataSpace,
+            AssociationEndMember sourceEnd,
+            AssociationEndMember targetEnd,
+            ReferentialConstraint constraint,
+            IEnumerable<MetadataProperty> metadataProperties)
+        {
+            Check.NotEmpty(name, "name");
+            Check.NotEmpty(namespaceName, "namespaceName");
+
+            var instance = new AssociationType(name, namespaceName, foreignKey, dataSpace);
+
+            if (sourceEnd != null)
+            {
+                instance.SourceEnd = sourceEnd;
+            }
+
+            if (targetEnd != null)
+            {
+                instance.TargetEnd = targetEnd;
+            }
+
+            if (constraint != null)
+            {
+                instance.AddReferentialConstraint(constraint);
+            }
+
+            if (metadataProperties != null)
+            {
+                instance.AddMetadataProperties(metadataProperties.ToList());
+            }
+
+            instance.SetReadOnly();
+
+            return instance;
         }
     }
 }

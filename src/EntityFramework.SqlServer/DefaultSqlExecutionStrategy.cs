@@ -9,29 +9,44 @@ namespace System.Data.Entity.SqlServer
     using System.Threading.Tasks;
 
     /// <summary>
-    ///     An execution strategy that doesn't affect the execution but will throw a more helpful exception if a transient failure is detected.
+    ///     An <see cref="IExecutionStrategy"/> that doesn't affect the execution but will throw a more helpful exception if a transient failure is detected.
     /// </summary>
-    internal sealed class DefaultSqlExecutionStrategy : ExecutionStrategy
+    internal sealed class DefaultSqlExecutionStrategy : IExecutionStrategy
     {
-        public DefaultSqlExecutionStrategy()
-            : base(new ExponentialRetryDelayStrategy(), new SqlAzureRetriableExceptionDetector())
+        public bool RetriesOnFailure
         {
+            get { return false; }
+        }
+        
+        public void Execute(Action action)
+        {
+            if (action == null)
+            {
+                throw new ArgumentNullException("action");
+            }
+
+            Execute(
+                () =>
+                {
+                    action();
+                    return (object)null;
+                });
         }
 
-        public override bool SupportsExistingTransactions
+        public TResult Execute<TResult>(Func<TResult> func)
         {
-            get { return true; }
-        }
-
-        protected override TResult ProtectedExecute<TResult>(Func<TResult> func)
-        {
+            if (func == null)
+            {
+                throw new ArgumentNullException("func");
+            }
+            
             try
             {
                 return func();
             }
             catch (Exception ex)
             {
-                if (RetriableExceptionDetector.ShouldRetryOn(ex))
+                if (ExecutionStrategyBase.UnwrapAndHandleException(ex, SqlAzureRetriableExceptionDetector.ShouldRetryOn))
                 {
                     throw new EntityException(Strings.TransientExceptionDetected, ex);
                 }
@@ -42,16 +57,40 @@ namespace System.Data.Entity.SqlServer
 
 #if !NET40
 
-        protected override async Task<TResult> ProtectedExecuteAsync<TResult>(
-            Func<Task<TResult>> taskFunc, CancellationToken cancellationToken)
+        public Task ExecuteAsync(Func<Task> func, CancellationToken cancellationToken)
+        {
+            if (func == null)
+            {
+                throw new ArgumentNullException("func");
+            }
+
+            return ExecuteAsyncImplementation(
+                async () =>
+                          {
+                              await func().ConfigureAwait(continueOnCapturedContext: false);
+                              return true;
+                          });
+        }
+
+        public Task<TResult> ExecuteAsync<TResult>(Func<Task<TResult>> func, CancellationToken cancellationToken)
+        {
+            if (func == null)
+            {
+                throw new ArgumentNullException("func");
+            }
+
+            return ExecuteAsyncImplementation(func);
+        }
+
+        private async Task<TResult> ExecuteAsyncImplementation<TResult>(Func<Task<TResult>> func)
         {
             try
             {
-                return await taskFunc().ConfigureAwait(continueOnCapturedContext: false);
+                return await func().ConfigureAwait(continueOnCapturedContext: false);
             }
             catch (Exception ex)
             {
-                if (RetriableExceptionDetector.ShouldRetryOn(ex))
+                if (ExecutionStrategyBase.UnwrapAndHandleException(ex, SqlAzureRetriableExceptionDetector.ShouldRetryOn))
                 {
                     throw new EntityException(Strings.TransientExceptionDetected, ex);
                 }
@@ -59,8 +98,6 @@ namespace System.Data.Entity.SqlServer
                 throw;
             }
         }
-
 #endif
-
     }
 }

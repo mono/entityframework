@@ -41,6 +41,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
             DatabaseGeneratedOption = source.DatabaseGeneratedOption;
             ColumnType = source.ColumnType;
             ColumnName = source.ColumnName;
+            ParameterName = source.ParameterName;
             ColumnOrder = source.ColumnOrder;
             OverridableConfigurationParts = source.OverridableConfigurationParts;
         }
@@ -76,6 +77,8 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
         /// </summary>
         public string ColumnName { get; set; }
 
+        public string ParameterName { get; set; }
+
         /// <summary>
         ///     Gets or sets the order of the database column used to store the property.
         /// </summary>
@@ -102,7 +105,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
                     var declaringTypeName = propertyInfo == null
                                                 ? string.Empty
                                                 : ObjectContextTypeCache.GetObjectType(propertyInfo.DeclaringType).
-                                                                         FullName;
+                                                                         FullNameWithNesting();
                     throw Error.ConflictingPropertyConfiguration(property.Name, declaringTypeName, errorMessage);
                 }
 
@@ -156,6 +159,53 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
             DebugCheck.NotNull(providerManifest);
 
             propertyMappings.Each(pm => Configure(pm.Item1.ColumnProperty, pm.Item2, providerManifest, allowOverride));
+        }
+
+        internal void ConfigureFunctionParameters(IEnumerable<FunctionParameter> parameters)
+        {
+            DebugCheck.NotNull(parameters);
+
+            parameters.Each(ConfigureParameterName);
+        }
+
+        private void ConfigureParameterName(FunctionParameter parameter)
+        {
+            DebugCheck.NotNull(parameter);
+
+            if (string.IsNullOrWhiteSpace(ParameterName)
+                || string.Equals(ParameterName, parameter.Name, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            parameter.Name = ParameterName;
+
+            // find other unconfigured parameters that have the same preferred name
+
+            var pendingRenames
+                = from p in parameter.DeclaringFunction.Parameters
+                  let configuration = p.GetConfiguration() as PrimitivePropertyConfiguration
+                  where (p != parameter)
+                        && string.Equals(ParameterName, p.Name, StringComparison.Ordinal)
+                        && ((configuration == null) || (configuration.ParameterName == null))
+                  select p;
+
+            var renamedParameters
+                = new List<FunctionParameter>
+                    {
+                        parameter
+                    };
+
+            // re-uniquify the conflicting parameters
+            pendingRenames
+                .Each(
+                    c =>
+                        {
+                            c.Name = renamedParameters.UniquifyName(ParameterName);
+                            renamedParameters.Add(c);
+                        });
+
+            parameter.SetConfiguration(this);
         }
 
         internal virtual void Configure(
@@ -230,10 +280,11 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
                         && ((configuration == null) || (configuration.ColumnName == null))
                   select c;
 
-            var renamedColumns = new List<EdmProperty>
-                                     {
-                                         column
-                                     };
+            var renamedColumns
+                = new List<EdmProperty>
+                    {
+                        column
+                    };
 
             // re-uniquify the conflicting columns
             pendingRenames
@@ -254,6 +305,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
         internal virtual void CopyFrom(PrimitivePropertyConfiguration other)
         {
             ColumnName = other.ColumnName;
+            ParameterName = other.ParameterName;
             ColumnOrder = other.ColumnOrder;
             ColumnType = other.ColumnType;
             ConcurrencyMode = other.ConcurrencyMode;
@@ -268,6 +320,11 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
                 && !inCSpace)
             {
                 ColumnName = other.ColumnName;
+            }
+            if (ParameterName == null
+                && !inCSpace)
+            {
+                ParameterName = other.ParameterName;
             }
             if (ColumnOrder == null
                 && !inCSpace)
@@ -311,6 +368,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
                                                       IsCompatible(
                                                           c => c.DatabaseGeneratedOption, other, ref errorMessage);
             var columnNameIsCompatible = inCSpace || IsCompatible(c => c.ColumnName, other, ref errorMessage);
+            var parameterNameIsCompatible = inCSpace || IsCompatible(c => c.ParameterName, other, ref errorMessage);
             var columnOrderIsCompatible = inCSpace || IsCompatible(c => c.ColumnOrder, other, ref errorMessage);
             var columnTypeIsCompatible = inCSpace || IsCompatible(c => c.ColumnType, other, ref errorMessage);
 
@@ -318,6 +376,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
                    concurrencyModeIsCompatible &&
                    databaseGeneratedOptionIsCompatible &&
                    columnNameIsCompatible &&
+                   parameterNameIsCompatible &&
                    columnOrderIsCompatible &&
                    columnTypeIsCompatible;
         }

@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
-namespace System.Data.Entity.ModelConfiguration.Conventions.UnitTests
+namespace System.Data.Entity.ModelConfiguration.Conventions
 {
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.ModelConfiguration.Edm;
@@ -11,13 +11,13 @@ namespace System.Data.Entity.ModelConfiguration.Conventions.UnitTests
         [Fact]
         public void Apply_should_introduce_constraint_when_one_to_one()
         {
-            var entityType1 = new EntityType();
+            var entityType1 = new EntityType("E", "N", DataSpace.CSpace);
             entityType1.AddKeyMember(EdmProperty.Primitive("P", PrimitiveType.GetEdmPrimitiveType(PrimitiveTypeKind.String)));
 
-            var entityType2 = new EntityType();
+            var entityType2 = new EntityType("E", "N", DataSpace.CSpace);
             entityType2.AddKeyMember(EdmProperty.Primitive("P", PrimitiveType.GetEdmPrimitiveType(PrimitiveTypeKind.String)));
 
-            var associationType = new AssociationType();
+            var associationType = new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace);
             associationType.SourceEnd = new AssociationEndMember("S", entityType2);
             associationType.TargetEnd = new AssociationEndMember("T", entityType1);
 

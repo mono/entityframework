@@ -1,6 +1,6 @@
 ﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
-namespace System.Data.Entity.ModelConfiguration.Edm.Services.UnitTests
+namespace System.Data.Entity.ModelConfiguration.Edm.Services
 {
     using System.Data.Entity.Core.Mapping;
     using System.Data.Entity.Core.Metadata.Edm;
@@ -20,7 +20,7 @@ namespace System.Data.Entity.ModelConfiguration.Edm.Services.UnitTests
                 = new DbDatabaseMapping()
                     .Initialize(new EdmModel(DataSpace.CSpace), new EdmModel(DataSpace.SSpace));
 
-            var entityType = new EntityType();
+            var entityType = new EntityType("E", "N", DataSpace.CSpace);
 
             var intProperty = EdmProperty.Primitive("Id", PrimitiveType.GetEdmPrimitiveType(PrimitiveTypeKind.Int32));
             entityType.AddKeyMember(intProperty);
@@ -31,6 +31,24 @@ namespace System.Data.Entity.ModelConfiguration.Edm.Services.UnitTests
             var entitySetMapping
                 = databaseMapping.AddEntitySetMapping(
                     databaseMapping.Model.AddEntitySet("ES", entityType));
+
+            var storageEntityTypeMapping 
+                = new StorageEntityTypeMapping(
+                    new StorageEntitySetMapping(new EntitySet(), databaseMapping.EntityContainerMappings.Single()));
+           
+            storageEntityTypeMapping.AddType(entityType);
+            
+            var storageMappingFragment = new StorageMappingFragment(new EntitySet(), storageEntityTypeMapping, false);
+            
+            storageMappingFragment.AddColumnMapping(
+                new ColumnMappingBuilder(new EdmProperty("C0"), new[] { intProperty }));
+
+            storageMappingFragment.AddColumnMapping(
+                new ColumnMappingBuilder(new EdmProperty("C1"), new[] { stringProperty }));
+
+            storageEntityTypeMapping.AddFragment(storageMappingFragment);
+
+            entitySetMapping.AddTypeMapping(storageEntityTypeMapping);
 
             functionMappingGenerator.Generate(entityType, databaseMapping);
 
@@ -86,7 +104,7 @@ namespace System.Data.Entity.ModelConfiguration.Edm.Services.UnitTests
                 = new DbDatabaseMapping()
                     .Initialize(new EdmModel(DataSpace.CSpace), new EdmModel(DataSpace.SSpace));
 
-            var entityType = new EntityType();
+            var entityType = new EntityType("E", "N", DataSpace.CSpace);
 
             var intProperty = EdmProperty.Primitive("Id", PrimitiveType.GetEdmPrimitiveType(PrimitiveTypeKind.Int32));
             intProperty.SetStoreGeneratedPattern(StoreGeneratedPattern.Identity);
@@ -99,6 +117,24 @@ namespace System.Data.Entity.ModelConfiguration.Edm.Services.UnitTests
             var entitySetMapping
                 = databaseMapping.AddEntitySetMapping(
                     databaseMapping.Model.AddEntitySet("ES", entityType));
+
+            var storageEntityTypeMapping
+                = new StorageEntityTypeMapping(
+                    new StorageEntitySetMapping(new EntitySet(), databaseMapping.EntityContainerMappings.Single()));
+
+            storageEntityTypeMapping.AddType(entityType);
+
+            var storageMappingFragment = new StorageMappingFragment(new EntitySet(), storageEntityTypeMapping, false);
+
+            storageMappingFragment.AddColumnMapping(
+                new ColumnMappingBuilder(new EdmProperty("C0"), new[] { intProperty }));
+
+            storageMappingFragment.AddColumnMapping(
+                new ColumnMappingBuilder(new EdmProperty("C1"), new[] { stringProperty }));
+
+            storageEntityTypeMapping.AddFragment(storageMappingFragment);
+
+            entitySetMapping.AddTypeMapping(storageEntityTypeMapping);
 
             functionMappingGenerator.Generate(entityType, databaseMapping);
 
@@ -160,7 +196,7 @@ namespace System.Data.Entity.ModelConfiguration.Edm.Services.UnitTests
             databaseMapping.Model.AddEntitySet("E2Set", entityType2);
 
             var entityTypeConfiguration = new EntityTypeConfiguration(typeof(object));
-            entityTypeConfiguration.MapToFunctions();
+            entityTypeConfiguration.MapToStoredProcedures();
             entityType1.SetConfiguration(entityTypeConfiguration);
             entityType2.SetConfiguration(entityTypeConfiguration);
 
@@ -174,12 +210,12 @@ namespace System.Data.Entity.ModelConfiguration.Edm.Services.UnitTests
                         entityType2,
                         RelationshipMultiplicity.Many));
 
-            var entitySet = new EntitySet("ES", "S", null, null, new EntityType());
+            var entitySet = new EntitySet("ES", "S", null, null, new EntityType("E", "N", DataSpace.CSpace));
 
-            var associationEndMember1 = new AssociationEndMember("Source", new EntityType());
+            var associationEndMember1 = new AssociationEndMember("Source", new EntityType("E", "N", DataSpace.CSpace));
             associationSet.AddAssociationSetEnd(new AssociationSetEnd(entitySet, associationSet, associationEndMember1));
 
-            var associationEndMember2 = new AssociationEndMember("Target", new EntityType());
+            var associationEndMember2 = new AssociationEndMember("Target", new EntityType("E", "N", DataSpace.CSpace));
             associationSet.AddAssociationSetEnd(new AssociationSetEnd(entitySet, associationSet, associationEndMember2));
 
             var associationSetMapping
@@ -188,12 +224,12 @@ namespace System.Data.Entity.ModelConfiguration.Edm.Services.UnitTests
                     entitySet)
                       {
                           SourceEndMapping
-                              = new StorageEndPropertyMapping(new EdmProperty("S"))
+                              = new StorageEndPropertyMapping()
                                     {
                                         EndMember = associationEndMember1
                                     },
                           TargetEndMapping
-                              = new StorageEndPropertyMapping(new EdmProperty("T"))
+                              = new StorageEndPropertyMapping()
                                     {
                                         EndMember = associationEndMember2
                                     }

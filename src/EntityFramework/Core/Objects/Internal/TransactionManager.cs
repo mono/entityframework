@@ -4,6 +4,7 @@ namespace System.Data.Entity.Core.Objects.Internal
 {
     using System.Collections.Generic;
     using System.Data.Entity.Core.Objects.DataClasses;
+    using System.Data.Entity.Infrastructure;
     using System.Diagnostics;
 
     internal class TransactionManager
@@ -113,7 +114,7 @@ namespace System.Data.Entity.Core.Objects.Internal
             {
                 TrackProcessedEntities = true;
                 ProcessedEntities = new HashSet<IEntityWrapper>();
-                WrappedEntities = new Dictionary<object, IEntityWrapper>();
+                WrappedEntities = new Dictionary<object, IEntityWrapper>(new ObjectReferenceEqualityComparer());
             }
         }
 
@@ -142,13 +143,13 @@ namespace System.Data.Entity.Core.Objects.Internal
             IsAttachTracking = true;
 
             PromotedRelationships = new Dictionary<RelatedEnd, IList<IEntityWrapper>>();
-            PromotedKeyEntries = new Dictionary<object, EntityEntry>();
+            PromotedKeyEntries = new Dictionary<object, EntityEntry>(new ObjectReferenceEqualityComparer());
             PopulatedEntityReferences = new HashSet<EntityReference>();
             AlignedEntityReferences = new HashSet<EntityReference>();
 
             TrackProcessedEntities = true;
             ProcessedEntities = new HashSet<IEntityWrapper>();
-            WrappedEntities = new Dictionary<object, IEntityWrapper>();
+            WrappedEntities = new Dictionary<object, IEntityWrapper>(new ObjectReferenceEqualityComparer());
 
             OriginalMergeOption = null; // this must be set explicitely to value!=null later when the merge option is known
         }
@@ -183,7 +184,7 @@ namespace System.Data.Entity.Core.Objects.Internal
             TrackProcessedEntities = true;
 
             ProcessedEntities = new HashSet<IEntityWrapper>();
-            WrappedEntities = new Dictionary<object, IEntityWrapper>();
+            WrappedEntities = new Dictionary<object, IEntityWrapper>(new ObjectReferenceEqualityComparer());
 
             DeletedRelationshipsByGraph = new Dictionary<IEntityWrapper, Dictionary<RelatedEnd, HashSet<IEntityWrapper>>>();
             AddedRelationshipsByGraph = new Dictionary<IEntityWrapper, Dictionary<RelatedEnd, HashSet<IEntityWrapper>>>();

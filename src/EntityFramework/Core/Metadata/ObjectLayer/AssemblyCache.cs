@@ -3,7 +3,6 @@
 namespace System.Data.Entity.Core.Metadata.Edm
 {
     using System.Collections.Generic;
-    using System.Data.Entity.Core.Common.Utils;
     using System.Diagnostics;
     using System.Reflection;
 
@@ -14,10 +13,6 @@ namespace System.Data.Entity.Core.Metadata.Edm
             new Dictionary<Assembly, ImmutableAssemblyCacheEntry>();
 
         private static readonly object _assemblyCacheLock = new object();
-
-        //List of assemblies having view gen attribute. We cache these things if we discover
-        //these assemblies while looking for O-space metadata.
-        private static readonly IList<Assembly> _viewGenAssemblies = new ThreadSafeList<Assembly>();
 
         internal static LockedAssemblyCache AquireLockedAssemblyCache()
         {
@@ -156,11 +151,6 @@ namespace System.Data.Entity.Core.Metadata.Edm
                 // Add all the assemblies from the loading context to the global cache
                 lockedAssemblyCache.Add(entry.Key, new ImmutableAssemblyCacheEntry(entry.Value));
             }
-        }
-
-        internal static IList<Assembly> ViewGenerationAssemblies
-        {
-            get { return _viewGenAssemblies; }
         }
     }
 }

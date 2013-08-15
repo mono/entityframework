@@ -115,6 +115,53 @@ namespace System.Data.Entity.Migrations
         }
     }
 
+    public class AutoAndGenerateScenarios_AddTableWithGuidKey :
+        AutoAndGenerateTestCase<AutoAndGenerateScenarios_AddTableWithGuidKey.V1, AutoAndGenerateScenarios_AddTableWithGuidKey.V2>
+    {
+        public AutoAndGenerateScenarios_AddTableWithGuidKey()
+        {
+            DownDataLoss = true;
+        }
+
+        public class V1 : AutoAndGenerateContext_v1
+        {
+        }
+
+        public class V2 : AutoAndGenerateContext_v2
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<WithGuidKey>();
+            }
+        }
+
+        protected override void VerifyUpOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(1, migrationOperations.Count());
+
+            var createTableOperation = migrationOperations.OfType<CreateTableOperation>().SingleOrDefault(o => o.Name == "dbo.WithGuidKeys");
+            Assert.NotNull(createTableOperation);
+
+            Assert.True(createTableOperation.PrimaryKey.Columns.Count == 1);
+            Assert.Equal("Id", createTableOperation.PrimaryKey.Columns.Single());
+            Assert.Equal(2, createTableOperation.Columns.Count);
+
+            var idColumn = createTableOperation.Columns.SingleOrDefault(c => c.Name == "Id");
+            Assert.NotNull(idColumn);
+            Assert.Equal(PrimitiveTypeKind.Guid, idColumn.Type);
+            Assert.False(idColumn.IsNullable.Value);
+            Assert.True(idColumn.IsIdentity);
+        }
+
+        protected override void VerifyDownOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(1, migrationOperations.Count());
+
+            var dropTableOperation = migrationOperations.OfType<DropTableOperation>().SingleOrDefault(o => o.Name == "dbo.WithGuidKeys");
+            Assert.NotNull(dropTableOperation);
+        }
+    }
+
     public class AutoAndGenerateScenarios_RemoveTable :
         AutoAndGenerateTestCase<AutoAndGenerateScenarios_RemoveTable.V1, AutoAndGenerateScenarios_RemoveTable.V2>
     {
@@ -378,7 +425,7 @@ namespace System.Data.Entity.Migrations
             {
                 modelBuilder.Entity<Order>().ToTable("Orders");
                 modelBuilder.Entity<Order>().HasMany(o => o.OrderLines).WithRequired().HasForeignKey(ol => ol.OrderId).
-                    WillCascadeOnDelete(false);
+                             WillCascadeOnDelete(false);
                 modelBuilder.Entity<OrderLine>().ToTable("OrderLines");
             }
         }
@@ -505,7 +552,7 @@ namespace System.Data.Entity.Migrations
             {
                 modelBuilder.Entity<Order>().ToTable("Orders");
                 modelBuilder.Entity<Order>().HasMany(o => o.OrderLines).WithRequired().HasForeignKey(ol => ol.OrderId).
-                    WillCascadeOnDelete(false);
+                             WillCascadeOnDelete(false);
                 modelBuilder.Entity<OrderLine>().ToTable("OrderLines");
             }
         }
@@ -725,6 +772,65 @@ namespace System.Data.Entity.Migrations
             Assert.NotNull(renameColumnOperation);
 
             Assert.Equal("Name", renameColumnOperation.NewName);
+        }
+    }
+
+    public class AutoAndGenerateScenarios_AlterSpatialColumnNames :
+        AutoAndGenerateTestCase<AutoAndGenerateScenarios_AlterSpatialColumnNames.V1, AutoAndGenerateScenarios_AlterSpatialColumnNames.V2>
+    {
+        public class V1 : AutoAndGenerateContext_v1
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<MigrationsStore>();
+
+                this.IgnoreSpatialTypesOnSqlCe(modelBuilder);
+            }
+        }
+
+        public class V2 : AutoAndGenerateContext_v2
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<MigrationsStore>().Property(s => s.Location).HasColumnName("Locomotion");
+                modelBuilder.Entity<MigrationsStore>().Property(s => s.FloorPlan).HasColumnName("PoorPlan");
+
+                this.IgnoreSpatialTypesOnSqlCe(modelBuilder);
+            }
+        }
+
+        protected override void VerifyUpOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(2, migrationOperations.Count());
+
+            Assert.Equal(
+                "Locomotion",
+                migrationOperations.OfType<RenameColumnOperation>()
+                                   .Single(o => o.Table == "dbo.MigrationsStores" && o.Name == "Location")
+                                   .NewName);
+
+            Assert.Equal(
+                "PoorPlan",
+                migrationOperations.OfType<RenameColumnOperation>()
+                                   .Single(o => o.Table == "dbo.MigrationsStores" && o.Name == "FloorPlan")
+                                   .NewName);
+        }
+
+        protected override void VerifyDownOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(2, migrationOperations.Count());
+
+            Assert.Equal(
+                "Location",
+                migrationOperations.OfType<RenameColumnOperation>()
+                                   .Single(o => o.Table == "dbo.MigrationsStores" && o.Name == "Locomotion")
+                                   .NewName);
+
+            Assert.Equal(
+                "FloorPlan",
+                migrationOperations.OfType<RenameColumnOperation>()
+                                   .Single(o => o.Table == "dbo.MigrationsStores" && o.Name == "PoorPlan")
+                                   .NewName);
         }
     }
 

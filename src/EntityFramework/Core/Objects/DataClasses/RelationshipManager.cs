@@ -34,6 +34,16 @@ namespace System.Data.Entity.Core.Objects.DataClasses
         private RelationshipManager()
         {
             _entityWrapperFactory = new EntityWrapperFactory();
+            _expensiveLoader = new ExpensiveOSpaceLoader();
+        }
+
+        /// <summary>
+        ///     For testing.
+        /// </summary>
+        internal RelationshipManager(ExpensiveOSpaceLoader expensiveLoader)
+        {
+            _entityWrapperFactory = new EntityWrapperFactory();
+            _expensiveLoader = expensiveLoader ?? new ExpensiveOSpaceLoader();
         }
 
         // ------
@@ -60,9 +70,22 @@ namespace System.Data.Entity.Core.Objects.DataClasses
         [NonSerialized]
         private EntityWrapperFactory _entityWrapperFactory;
 
+        [NonSerialized]
+        private ExpensiveOSpaceLoader _expensiveLoader;
+
         // ----------
         // Properties
         // ----------
+
+        /// <summary>
+        ///     For testing.
+        /// </summary>
+        internal void SetExpensiveLoader(ExpensiveOSpaceLoader loader)
+        {
+            DebugCheck.NotNull(loader);
+
+            _expensiveLoader = loader;
+        }
 
         /// <summary>
         ///     Returns a defensive copy of all the known relationships.  The copy is defensive because
@@ -124,7 +147,9 @@ namespace System.Data.Entity.Core.Objects.DataClasses
         // -------
 
         /// <summary>
-        ///     Factory method to create a new RelationshipManager object.
+        ///     Creates a new <see cref="T:System.Data.Entity.Core.Objects.DataClasses.RelationshipManager" /> object.
+        /// </summary>
+        /// <remarks>
         ///     Used by data classes that support relationships. If the change tracker
         ///     requests the RelationshipManager property and the data class does not
         ///     already have a reference to one of these objects, it calls this method
@@ -135,13 +160,11 @@ namespace System.Data.Entity.Core.Objects.DataClasses
         ///     By requiring that these objects are created via this method, developers should
         ///     give more thought to the operation, and will generally only use it when
         ///     they explicitly need to get an object of this type. It helps define the intended usage.
-        /// </summary>
-        /// <param name="owner"> Reference to the entity that is calling this method </param>
-        /// <exception cref="ArgumentNullException">
-        ///     <paramref name="owner" />
-        ///     is null
-        /// </exception>
-        /// <returns> A new or existing RelationshipManager for the given entity </returns>
+        /// </remarks>
+        /// <returns>
+        ///     The requested <see cref="T:System.Data.Entity.Core.Objects.DataClasses.RelationshipManager" />.
+        /// </returns>
+        /// <param name="owner">Reference to the entity that is calling this method.</param>
         public static RelationshipManager Create(IEntityWithRelationships owner)
         {
             Check.NotNull(owner, "owner");
@@ -398,7 +421,7 @@ namespace System.Data.Entity.Core.Objects.DataClasses
             Debug.Assert(wrappedOwner.Context.Perspective != null, "Perspective is null");
 
             var entityType = wrappedOwner.Context.MetadataWorkspace.GetItem<EntityType>(
-                wrappedOwner.IdentityType.FullName, DataSpace.OSpace);
+                wrappedOwner.IdentityType.FullNameWithNesting(), DataSpace.OSpace);
             EdmMember member;
             if (!wrappedOwner.Context.Perspective.TryGetMember(entityType, navigationProperty, false, out member)
                 ||
@@ -412,15 +435,25 @@ namespace System.Data.Entity.Core.Objects.DataClasses
         }
 
         /// <summary>
-        ///     Returns either an EntityCollection or EntityReference of the correct type for the specified target role in a relationship
-        ///     This is intended to be used in scenarios where the user doesn't have full metadata, including the static type
-        ///     information for both ends of the relationship. This metadata is specified in the EdmRelationshipRoleAttribute
-        ///     on each entity type in the relationship, so the metadata system can retrieve it based on the supplied relationship
-        ///     name and target role name.
+        ///     Returns either an <see cref="T:System.Data.Entity.Core.Objects.DataClasses.EntityCollection`1" /> or
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Objects.DataClasses.EntityReference`1" />
+        ///     of the correct type for the specified target role in a relationship.
         /// </summary>
-        /// <param name="relationshipName"> Name of the relationship in which targetRoleName is defined. Can be CSpace-qualified or not. </param>
-        /// <param name="targetRoleName"> Target role to use to retrieve the other end of relationshipName </param>
-        /// <returns> IRelatedEnd representing the EntityCollection or EntityReference that was retrieved </returns>
+        /// <returns>
+        ///     <see cref="T:System.Data.Entity.Core.Objects.DataClasses.IRelatedEnd" /> representing the
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Objects.DataClasses.EntityCollection`1" />
+        ///     or
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Objects.DataClasses.EntityReference`1" />
+        ///     that was retrieved.
+        /// </returns>
+        /// <param name="relationshipName">Name of the relationship in which  targetRoleName  is defined. The relationship name is not namespace qualified.</param>
+        /// <param name="targetRoleName">Target role to use to retrieve the other end of  relationshipName .</param>
+        /// <exception cref="T:System.ArgumentNullException"> relationshipName  or  targetRoleName  is null.</exception>
+        /// <exception cref="T:System.InvalidOperationException">The source type does not match the type of the owner.</exception>
+        /// <exception cref="T:System.ArgumentException"> targetRoleName  is invalid or unable to find the relationship type in the metadata.</exception>
         public IRelatedEnd GetRelatedEnd(string relationshipName, string targetRoleName)
         {
             return GetRelatedEndInternal(PrependNamespaceToRelationshipName(relationshipName), targetRoleName);
@@ -439,38 +472,10 @@ namespace System.Data.Entity.Core.Objects.DataClasses
                 throw new InvalidOperationException(Strings.RelationshipManager_CannotGetRelatEndForDetachedPocoEntity);
             }
 
-            RelatedEnd relatedEnd = null;
+            var associationType = GetRelationshipType(relationshipName);
+            Debug.Assert(associationType != null);
 
-            // Try to get the AssociationType from metadata. This will contain all of the ospace metadata for this relationship            
-            AssociationType associationType = null;
-            if (!TryGetRelationshipType(wrappedOwner, wrappedOwner.IdentityType, relationshipName, out associationType))
-            {
-                if (_relationships != null)
-                {
-                    // Look for the RelatedEnd in the list that has already been retrieved
-                    relatedEnd = (from RelatedEnd end in _relationships
-                                  where end.RelationshipName == relationshipName &&
-                                        end.TargetRoleName == targetRoleName
-                                  select end).FirstOrDefault();
-                }
-
-                if (relatedEnd == null
-                    &&
-                    !EntityProxyFactory.TryGetAssociationTypeFromProxyInfo(
-                        wrappedOwner, relationshipName, targetRoleName, out associationType))
-                {
-                    // If the end still cannot be found, throw an exception
-                    throw UnableToGetMetadata(WrappedOwner, relationshipName);
-                }
-            }
-
-            if (relatedEnd == null)
-            {
-                Debug.Assert(associationType != null, "associationType is null");
-                relatedEnd = GetRelatedEndInternal(relationshipName, targetRoleName, /*existingRelatedEnd*/ null, associationType);
-            }
-
-            return relatedEnd;
+            return GetRelatedEndInternal(relationshipName, targetRoleName, /*existingRelatedEnd*/ null, associationType);
         }
 
         private RelatedEnd GetRelatedEndInternal(
@@ -545,12 +550,22 @@ namespace System.Data.Entity.Core.Objects.DataClasses
         /// <summary>
         ///     Takes an existing EntityReference that was created with the default constructor and initializes it using the provided relationship and target role names.
         ///     This method is designed to be used during deserialization only, and will throw an exception if the provided EntityReference has already been initialized,
-        ///     if the relationship manager already contains a relationship with this name and target role, or if the relationship manager is already attached to a ObjectContext.
+        ///     if the relationship manager already contains a relationship with this name and target role, or if the relationship manager is already attached to a ObjectContext.W
         /// </summary>
-        /// <typeparam name="TTargetEntity"> Type of the entity represented by targetRoleName </typeparam>
-        /// <param name="relationshipName"> </param>
-        /// <param name="targetRoleName"> </param>
-        /// <param name="entityReference"> </param>
+        /// <param name="relationshipName">The relationship name.</param>
+        /// <param name="targetRoleName">The role name of the related end.</param>
+        /// <param name="entityReference">
+        ///     The <see cref="T:System.Data.Entity.Core.Objects.DataClasses.EntityReference`1" /> to initialize.
+        /// </param>
+        /// <typeparam name="TTargetEntity">
+        ///     The type of the <see cref="T:System.Data.Entity.Core.Objects.DataClasses.EntityReference`1" /> being initialized.
+        /// </typeparam>
+        /// <exception cref="T:System.InvalidOperationException">
+        ///     When the provided <see cref="T:System.Data.Entity.Core.Objects.DataClasses.EntityReference`1" /> 
+        ///     is already initialized.-or-When the relationship manager is already attached to an
+        ///     <see cref="T:System.Data.Entity.Core.Objects.ObjectContext" />
+        ///     or when the relationship manager already contains a relationship with this name and target role.
+        /// </exception>
         [Browsable(false)]
         [EditorBrowsable(EditorBrowsableState.Never)]
         public void InitializeRelatedReference<TTargetEntity>(
@@ -578,7 +593,7 @@ namespace System.Data.Entity.Core.Objects.DataClasses
             // We need the CSpace-qualified name in order to determine if this relationship already exists, so look it up.
             // If the relationship doesn't exist, we will use this type information to determine how to initialize the reference
             relationshipName = PrependNamespaceToRelationshipName(relationshipName);
-            var relationship = GetRelationshipType(wrappedOwner.IdentityType, relationshipName);
+            var relationship = GetRelationshipType(relationshipName);
 
             RelatedEnd relatedEnd;
             if (TryGetCachedRelatedEnd(relationshipName, targetRoleName, out relatedEnd))
@@ -640,7 +655,7 @@ namespace System.Data.Entity.Core.Objects.DataClasses
             // We need the CSpace-qualified name in order to determine if this relationship already exists, so look it up.
             // If the relationship doesn't exist, we will use this type information to determine how to initialize the reference
             relationshipName = PrependNamespaceToRelationshipName(relationshipName);
-            var relationship = GetRelationshipType(wrappedOwner.IdentityType, relationshipName);
+            var relationship = GetRelationshipType(relationshipName);
 
             var collection =
                 GetRelatedEndInternal(relationshipName, targetRoleName, entityCollection, relationship) as EntityCollection<TTargetEntity>;
@@ -660,13 +675,31 @@ namespace System.Data.Entity.Core.Objects.DataClasses
         ///     This method should only be used at the imediate top-level public surface since all internal
         ///     calls are expected to use fully qualified names already.
         /// </summary>
-        private string PrependNamespaceToRelationshipName(string relationshipName)
+        internal string PrependNamespaceToRelationshipName(string relationshipName)
         {
             DebugCheck.NotNull(relationshipName);
 
             if (!relationshipName.Contains('.'))
             {
-                var identityName = WrappedOwner.IdentityType.FullName;
+                AssociationType associationType;
+                if (EntityProxyFactory.TryGetAssociationTypeFromProxyInfo(WrappedOwner, relationshipName, out associationType))
+                {
+                    return associationType.FullName;
+                }
+
+                if (_relationships != null)
+                {
+                    var fullName = _relationships
+                        .Select(r => r.RelationshipName)
+                        .FirstOrDefault(n => n.Substring(n.LastIndexOf('.') + 1) == relationshipName);
+
+                    if (fullName != null)
+                    {
+                        return fullName;
+                    }
+                }
+
+                var identityName = WrappedOwner.IdentityType.FullNameWithNesting();
                 var objectItemCollection = GetObjectItemCollection(WrappedOwner);
                 EdmType entityType = null;
                 if (objectItemCollection != null)
@@ -675,7 +708,7 @@ namespace System.Data.Entity.Core.Objects.DataClasses
                 }
                 else
                 {
-                    var types = ObjectItemCollection.LoadTypesExpensiveWay(WrappedOwner.IdentityType.Assembly);
+                    var types = _expensiveLoader.LoadTypesExpensiveWay(WrappedOwner.IdentityType.Assembly);
                     if (types != null)
                     {
                         types.TryGetValue(identityName, out entityType);
@@ -698,9 +731,10 @@ namespace System.Data.Entity.Core.Objects.DataClasses
         /// </summary>
         private static ObjectItemCollection GetObjectItemCollection(IEntityWrapper wrappedOwner)
         {
-            if (wrappedOwner.Context != null
-                && wrappedOwner.Context.MetadataWorkspace != null)
+            if (wrappedOwner.Context != null)
             {
+                Debug.Assert(wrappedOwner.Context.MetadataWorkspace != null);
+
                 return (ObjectItemCollection)wrappedOwner.Context.MetadataWorkspace.GetItemCollection(DataSpace.OSpace);
             }
             return null;
@@ -714,8 +748,7 @@ namespace System.Data.Entity.Core.Objects.DataClasses
             DefaultObjectMappingItemCollection mappings;
             Map map;
             if (TryGetObjectMappingItemCollection(WrappedOwner, out mappings)
-                &&
-                mappings.TryGetMap(WrappedOwner.IdentityType.FullName, DataSpace.OSpace, out map))
+                && mappings.TryGetMap(WrappedOwner.IdentityType.FullNameWithNesting(), DataSpace.OSpace, out map))
             {
                 var objectMap = (ObjectTypeMapping)map;
                 if (Helper.IsEntityType(objectMap.EdmType))
@@ -746,29 +779,43 @@ namespace System.Data.Entity.Core.Objects.DataClasses
             return false;
         }
 
-        internal static bool TryGetRelationshipType(
-            IEntityWrapper wrappedOwner, Type entityClrType, string relationshipName, out AssociationType associationType)
+        internal AssociationType GetRelationshipType(string relationshipName)
         {
-            var objectItemCollection = GetObjectItemCollection(wrappedOwner);
+            DebugCheck.NotEmpty(relationshipName);
+
+            AssociationType associationType = null;
+
+            var objectItemCollection = GetObjectItemCollection(WrappedOwner);
             if (objectItemCollection != null)
             {
                 associationType = objectItemCollection.GetRelationshipType(relationshipName);
             }
-            else
+
+            if (associationType == null)
             {
-                associationType = ObjectItemCollection.GetRelationshipTypeExpensiveWay(entityClrType, relationshipName);
+                EntityProxyFactory.TryGetAssociationTypeFromProxyInfo(WrappedOwner, relationshipName, out associationType);
             }
 
-            return (associationType != null);
-        }
+            if (associationType == null
+                && _relationships != null)
+            {
+                associationType = _relationships
+                    .Where(e => e.RelationshipName == relationshipName)
+                    .Select(e => e.RelationMetadata)
+                    .OfType<AssociationType>()
+                    .FirstOrDefault();
+            }
 
-        private AssociationType GetRelationshipType(Type entityClrType, string relationshipName)
-        {
-            AssociationType associationType = null;
-            if (!TryGetRelationshipType(WrappedOwner, entityClrType, relationshipName, out associationType))
+            if (associationType == null)
+            {
+                associationType = _expensiveLoader.GetRelationshipTypeExpensiveWay(WrappedOwner.IdentityType, relationshipName);
+            }
+
+            if (associationType == null)
             {
                 throw UnableToGetMetadata(WrappedOwner, relationshipName);
             }
+
             return associationType;
         }
 
@@ -826,8 +873,13 @@ namespace System.Data.Entity.Core.Objects.DataClasses
             }
             else
             {
-                // No metadata is available, attempt to load the metadata on the fly to retrieve the AssociationTypes
-                associations = ObjectItemCollection.GetAllRelationshipTypesExpensiveWay(entityClrType.Assembly);
+                associations = EntityProxyFactory.TryGetAllAssociationTypesFromProxyInfo(WrappedOwner);
+
+                if (associations == null)
+                {
+                    // No metadata is available, attempt to load the metadata on the fly to retrieve the AssociationTypes
+                    associations = _expensiveLoader.GetAllRelationshipTypesExpensiveWay(entityClrType.Assembly);
+                }
             }
 
             foreach (var association in associations)
@@ -849,7 +901,6 @@ namespace System.Data.Entity.Core.Objects.DataClasses
                     yield return association.AssociationEndMembers[0];
                 }
             }
-            yield break;
         }
 
         private bool VerifyRelationship(AssociationType relationship, string sourceEndName, bool throwOnError)
@@ -911,13 +962,22 @@ namespace System.Data.Entity.Core.Objects.DataClasses
         }
 
         /// <summary>
-        ///     Get the collection of a related entity using the specified
-        ///     combination of relationship name, and target role name.
-        ///     Only supports 2-way relationships.
+        ///     Gets an <see cref="T:System.Data.Entity.Core.Objects.DataClasses.EntityCollection`1" /> of related objects with the specified relationship name and target role name.
         /// </summary>
-        /// <param name="relationshipName"> Name of the relationship in which targetRoleName is defined. Can be CSpace-qualified or not. </param>
-        /// <param name="targetRoleName"> Name of the target role for the navigation. Indicates the direction of navigation across the relationship. </param>
-        /// <returns> Collection of entities of type TTargetEntity </returns>
+        /// <returns>
+        ///     The <see cref="T:System.Data.Entity.Core.Objects.DataClasses.EntityCollection`1" /> of related objects.
+        /// </returns>
+        /// <param name="relationshipName">Name of the relationship to navigate. The relationship name is not namespace qualified.</param>
+        /// <param name="targetRoleName">Name of the target role for the navigation. Indicates the direction of navigation across the relationship.</param>
+        /// <typeparam name="TTargetEntity">
+        ///     The type of the returned <see cref="T:System.Data.Entity.Core.Objects.DataClasses.EntityCollection`1" />.
+        /// </typeparam>
+        /// <exception cref="T:System.InvalidOperationException">
+        ///     The specified role returned an <see cref="T:System.Data.Entity.Core.Objects.DataClasses.EntityReference`1" /> instead of an
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Objects.DataClasses.EntityCollection`1" />
+        ///     .
+        /// </exception>
         public EntityCollection<TTargetEntity> GetRelatedCollection<TTargetEntity>(string relationshipName, string targetRoleName)
             where TTargetEntity : class
         {
@@ -933,13 +993,22 @@ namespace System.Data.Entity.Core.Objects.DataClasses
         }
 
         /// <summary>
-        ///     Get the entity reference of a related entity using the specified
-        ///     combination of relationship name, and target role name.
-        ///     Only supports 2-way relationships.
+        ///     Gets the <see cref="T:System.Data.Entity.Core.Objects.DataClasses.EntityReference`1" /> for a related object by using the specified combination of relationship name and target role name.
         /// </summary>
-        /// <param name="relationshipName"> Name of the relationship in which targetRoleName is defined. Can be CSpace-qualified or not. </param>
-        /// <param name="targetRoleName"> Name of the target role for the navigation. Indicates the direction of navigation across the relationship. </param>
-        /// <returns> Reference for related entity of type TTargetEntity </returns>
+        /// <returns>
+        ///     The <see cref="T:System.Data.Entity.Core.Objects.DataClasses.EntityReference`1" /> of a related object.
+        /// </returns>
+        /// <param name="relationshipName">Name of the relationship to navigate. The relationship name is not namespace qualified.</param>
+        /// <param name="targetRoleName">Name of the target role for the navigation. Indicates the direction of navigation across the relationship.</param>
+        /// <typeparam name="TTargetEntity">
+        ///     The type of the returned <see cref="T:System.Data.Entity.Core.Objects.DataClasses.EntityReference`1" />.
+        /// </typeparam>
+        /// <exception cref="T:System.InvalidOperationException">
+        ///     The specified role returned an <see cref="T:System.Data.Entity.Core.Objects.DataClasses.EntityCollection`1" /> instead of an
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Objects.DataClasses.EntityReference`1" />
+        ///     .
+        /// </exception>
         public EntityReference<TTargetEntity> GetRelatedReference<TTargetEntity>(string relationshipName, string targetRoleName)
             where TTargetEntity : class
         {
@@ -1047,10 +1116,13 @@ namespace System.Data.Entity.Core.Objects.DataClasses
             return relatedEnd;
         }
 
-        /// <summary>
-        ///     Returns an enumeration of all the related ends.  The enumeration
-        ///     will be empty if the relationships have not been populated.
-        /// </summary>
+        /// <summary>Returns an enumeration of all the related ends managed by the relationship manager.</summary>
+        /// <returns>
+        ///     An <see cref="T:System.Collections.Generic.IEnumerable`1" /> of objects that implement
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Objects.DataClasses.IRelatedEnd" />
+        ///     . An empty enumeration is returned when the relationships have not yet been populated.
+        /// </returns>
         [SuppressMessage("Microsoft.Design", "CA1024:UsePropertiesWhereAppropriate")]
         public IEnumerable<IRelatedEnd> GetAllRelatedEnds()
         {
@@ -1090,6 +1162,10 @@ namespace System.Data.Entity.Core.Objects.DataClasses
             yield break;
         }
 
+        /// <summary>
+        ///     Called by Object Services to prepare an <see cref="T:System.Data.Entity.Core.EntityKey" /> for binary serialization with a serialized relationship.
+        /// </summary>
+        /// <param name="context">Describes the source and destination of a given serialized stream, and provides an additional caller-defined context.</param>
         [EditorBrowsable(EditorBrowsableState.Never)]
         [Browsable(false)]
         [OnSerializing]
@@ -1473,6 +1549,13 @@ namespace System.Data.Entity.Core.Objects.DataClasses
         // In particular, it recreates a entity wrapper from the serialized owner.
         // Note that this is only expected to work for non-POCO entities, since serialization of POCO
         // entities will not result in serialization of the RelationshipManager or its related objects.
+        /// <summary>
+        ///     Used internally to deserialize entity objects along with the
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Objects.DataClasses.RelationshipManager" />
+        ///     instances.
+        /// </summary>
+        /// <param name="context">The serialized stream.</param>
         [EditorBrowsable(EditorBrowsableState.Never)]
         [Browsable(false)]
         [OnDeserialized]
@@ -1482,6 +1565,7 @@ namespace System.Data.Entity.Core.Objects.DataClasses
             // Note that when deserializing, the context is always null since we never serialize
             // the context with the entity.
             _entityWrapperFactory = new EntityWrapperFactory();
+            _expensiveLoader = new ExpensiveOSpaceLoader();
             _wrappedOwner = EntityWrapperFactory.WrapEntityUsingContext(_owner, null);
         }
 

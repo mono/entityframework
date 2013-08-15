@@ -3,15 +3,16 @@
 namespace FunctionalTests
 {
     using System;
+    using System.Collections.Generic;
+    using System.ComponentModel.DataAnnotations;
+    using System.ComponentModel.DataAnnotations.Schema;
     using System.Data.Entity;
-    using System.Data.Entity.Core;
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.ModelConfiguration;
     using System.Data.Entity.ModelConfiguration.Edm;
     using System.Data.Entity.Resources;
     using System.Linq;
     using System.Linq.Expressions;
-    using FunctionalTests.Fixtures;
     using FunctionalTests.Model;
     using Xunit;
 
@@ -33,10 +34,12 @@ namespace FunctionalTests
             databaseMapping.Assert<MaxLengthProperties>(e => e.Id).DbEqual("nvarchar", c => c.TypeName);
 
             databaseMapping.Assert<MaxLengthProperties>(e => e.Prop1).DbEqual(4000, f => f.MaxLength);
+            databaseMapping.Assert<MaxLengthProperties>(e => e.Prop1).DbEqual(false, f => f.IsMaxLengthConstant);
             databaseMapping.Assert<MaxLengthProperties>(e => e.Prop1).DbEqual(false, f => f.IsMaxLength);
             databaseMapping.Assert<MaxLengthProperties>(e => e.Prop1).DbEqual("nvarchar", c => c.TypeName);
 
             databaseMapping.Assert<MaxLengthProperties>(e => e.Prop2).DbEqual(4000, f => f.MaxLength);
+            databaseMapping.Assert<MaxLengthProperties>(e => e.Prop2).DbEqual(false, f => f.IsMaxLengthConstant);
             databaseMapping.Assert<MaxLengthProperties>(e => e.Prop2).DbEqual(false, f => f.IsMaxLength);
             databaseMapping.Assert<MaxLengthProperties>(e => e.Prop2).DbEqual("varbinary", c => c.TypeName);
         }
@@ -82,11 +85,11 @@ namespace FunctionalTests
             databaseMapping.Assert<MaxLengthProperties>(e => e.Id).DbEqual(false, f => f.IsMaxLength);
             databaseMapping.Assert<MaxLengthProperties>(e => e.Id).DbEqual("nvarchar", c => c.TypeName);
 
-            databaseMapping.Assert<MaxLengthProperties>(e => e.Prop1).DbEqual(null, f => f.MaxLength);
+            databaseMapping.Assert<MaxLengthProperties>(e => e.Prop1).DbEqual(true, f => f.IsMaxLengthConstant);
             databaseMapping.Assert<MaxLengthProperties>(e => e.Prop1).DbEqual(false, f => f.IsMaxLength);
             databaseMapping.Assert<MaxLengthProperties>(e => e.Prop1).DbEqual("nvarchar(max)", c => c.TypeName);
 
-            databaseMapping.Assert<MaxLengthProperties>(e => e.Prop2).DbEqual(null, f => f.MaxLength);
+            databaseMapping.Assert<MaxLengthProperties>(e => e.Prop2).DbEqual(true, f => f.IsMaxLengthConstant);
             databaseMapping.Assert<MaxLengthProperties>(e => e.Prop2).DbEqual(false, f => f.IsMaxLength);
             databaseMapping.Assert<MaxLengthProperties>(e => e.Prop2).DbEqual("varbinary(max)", c => c.TypeName);
         }
@@ -117,6 +120,13 @@ namespace FunctionalTests
             databaseMapping.Assert<MaxLengthProperties>(e => e.Prop2).DbEqual("binary", c => c.TypeName);
         }
 
+        public class MaxLengthProperties
+        {
+            public string Id { get; set; }
+            public string Prop1 { get; set; }
+            public byte[] Prop2 { get; set; }
+        }
+
         [Fact]
         public void Can_have_configured_duplicate_column_and_by_convention_column_is_uniquified()
         {
@@ -133,6 +143,15 @@ namespace FunctionalTests
             databaseMapping.Assert<EntityWithConfiguredDuplicateColumn>(e => e.Details).DbEqual(
                 "Description",
                 c => c.Name);
+        }
+
+        public class EntityWithConfiguredDuplicateColumn
+        {
+            public int Id { get; set; }
+            public string Description { get; set; }
+
+            [Column("Description")]
+            public string Details { get; set; }
         }
 
         [Fact]
@@ -220,9 +239,39 @@ namespace FunctionalTests
 
             modelBuilder.Entity<EntityWithDescBase>();
             modelBuilder.Entity<EntityWithDescB>().Property(e => e.Description).HasColumnName("Description");
-            modelBuilder.Entity<EntityWithDescC>().Property(e => e.Description).HasColumnName("Description");
+            modelBuilder.Entity<EntityWithDescB>().Property(e => e.NotDescription).HasColumnName("Description");
 
             Assert.Throws<ModelValidationException>(() => BuildMapping(modelBuilder));
+        }
+
+        public class EntityWithDescBase
+        {
+            public int Id { get; set; }
+        }
+
+        public class EntityWithDescA : EntityWithDescBase
+        {
+            public string Description { get; set; }
+            public ComplexWithDesc Complex { get; set; }
+        }
+
+        public class EntityWithDescB : EntityWithDescBase
+        {
+            public string Description { get; set; }
+            public string NotDescription { get; set; }
+            public ComplexWithDesc Complex { get; set; }
+        }
+
+        public class EntityWithDescC : EntityWithDescBase
+        {
+            public string Description { get; set; }
+            public ComplexWithDesc Complex { get; set; }
+        }
+
+        public class ComplexWithDesc
+        {
+            [Required]
+            public string Description { get; set; }
         }
 
         [Fact]
@@ -252,6 +301,26 @@ namespace FunctionalTests
             databaseMapping.AssertValid();
             databaseMapping.Assert<SplitProduct>(s => s.Name).DbEqual("Name", c => c.Name);
             databaseMapping.Assert<SplitProductDetail>(s => s.Name).DbEqual("Unique", c => c.Name);
+        }
+
+        public class SplitProduct
+        {
+            public int Id { get; set; }
+            public string Name { get; set; }
+
+            [Required]
+            public SplitProductDetail Detail { get; set; }
+        }
+
+        public class SplitProductDetail
+        {
+            [ForeignKey("Product")]
+            public int Id { get; set; }
+
+            public string Name { get; set; }
+
+            [Required]
+            public SplitProduct Product { get; set; }
         }
 
         [Fact]
@@ -293,6 +362,24 @@ namespace FunctionalTests
             databaseMapping.AssertValid();
         }
 
+        public class DecimalKey
+        {
+            public decimal Id { get; set; }
+            public ICollection<DecimalDependent> DecimalDependents { get; set; }
+        }
+
+        public class DecimalDependent
+        {
+            public int Id { get; set; }
+            public decimal DecimalKeyId { get; set; }
+        }
+
+        public abstract class SingleAbstract
+        {
+            public int Id { get; set; }
+            public DecimalDependent Nav { get; set; }
+        }
+
         [Fact]
         public void Throw_when_mapping_properties_expression_contains_assignments()
         {
@@ -329,6 +416,30 @@ namespace FunctionalTests
                     .SelectMany(a => a.Members)
                     .Cast<AssociationEndMember>()
                     .Count(e => e.DeleteBehavior == OperationAction.Cascade));
+        }
+
+        public class StockOrder
+        {
+            public int Id { get; set; }
+            public int LocationId { get; set; }
+            public Location Location { get; set; }
+            public ICollection<Organization> Organizations { get; set; }
+        }
+
+        public class Organization
+        {
+            public int Id { get; set; }
+            public int StockOrderId { get; set; }
+            public StockOrder StockOrder { get; set; }
+            public ICollection<Location> Locations { get; set; }
+        }
+
+        public class Location
+        {
+            public int Id { get; set; }
+            public ICollection<StockOrder> StockOrders { get; set; }
+            public int OrganizationId { get; set; }
+            public Organization Organization { get; set; }
         }
 
         [Fact]
@@ -398,120 +509,6 @@ namespace FunctionalTests
             var databaseMapping = BuildMapping(modelBuilder);
 
             Assert.True(databaseMapping.Model.Containers.Single().EntitySets.Any(es => es.Name == "Foos"));
-        }
-    }
-
-    namespace Fixtures
-    {
-        using System.Collections.Generic;
-        using System.ComponentModel.DataAnnotations;
-        using System.ComponentModel.DataAnnotations.Schema;
-
-        public class StockOrder
-        {
-            public int Id { get; set; }
-            public int LocationId { get; set; }
-            public Location Location { get; set; }
-            public ICollection<Organization> Organizations { get; set; }
-        }
-
-        public class Organization
-        {
-            public int Id { get; set; }
-            public int StockOrderId { get; set; }
-            public StockOrder StockOrder { get; set; }
-            public ICollection<Location> Locations { get; set; }
-        }
-
-        public class Location
-        {
-            public int Id { get; set; }
-            public ICollection<StockOrder> StockOrders { get; set; }
-            public int OrganizationId { get; set; }
-            public Organization Organization { get; set; }
-        }
-
-        public class DecimalKey
-        {
-            public decimal Id { get; set; }
-            public ICollection<DecimalDependent> DecimalDependents { get; set; }
-        }
-
-        public class DecimalDependent
-        {
-            public int Id { get; set; }
-            public decimal DecimalKeyId { get; set; }
-        }
-
-        public abstract class SingleAbstract
-        {
-            public int Id { get; set; }
-            public DecimalDependent Nav { get; set; }
-        }
-
-        public class SplitProduct
-        {
-            public int Id { get; set; }
-            public string Name { get; set; }
-
-            [Required]
-            public SplitProductDetail Detail { get; set; }
-        }
-
-        public class SplitProductDetail
-        {
-            [ForeignKey("Product")]
-            public int Id { get; set; }
-
-            public string Name { get; set; }
-
-            [Required]
-            public SplitProduct Product { get; set; }
-        }
-
-        public class EntityWithConfiguredDuplicateColumn
-        {
-            public int Id { get; set; }
-            public string Description { get; set; }
-
-            [Column("Description")]
-            public string Details { get; set; }
-        }
-
-        public class EntityWithDescBase
-        {
-            public int Id { get; set; }
-        }
-
-        public class EntityWithDescA : EntityWithDescBase
-        {
-            public string Description { get; set; }
-            public ComplexWithDesc Complex { get; set; }
-        }
-
-        public class EntityWithDescB : EntityWithDescBase
-        {
-            public string Description { get; set; }
-            public ComplexWithDesc Complex { get; set; }
-        }
-
-        public class EntityWithDescC : EntityWithDescBase
-        {
-            public string Description { get; set; }
-            public ComplexWithDesc Complex { get; set; }
-        }
-
-        public class ComplexWithDesc
-        {
-            [Required]
-            public string Description { get; set; }
-        }
-
-        public class MaxLengthProperties
-        {
-            public string Id { get; set; }
-            public string Prop1 { get; set; }
-            public byte[] Prop2 { get; set; }
         }
     }
 }

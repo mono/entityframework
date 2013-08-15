@@ -2,23 +2,15 @@
 
 namespace System.Data.Entity.SqlServer
 {
-    using System.Data.Entity.Core;
-    using System.Data.Entity.Infrastructure;
     using System.Data.SqlClient;
 
     /// <summary>
-    ///     A <see cref="IRetriableExceptionDetector"/> that detects the exceptions caused by SQL Azure transient failures.
+    ///     Detects the exceptions caused by SQL Azure transient failures.
     /// </summary>
-    public class SqlAzureRetriableExceptionDetector : IRetriableExceptionDetector
+    internal static class SqlAzureRetriableExceptionDetector
     {
-        /// <inheritdoc/>
-        public bool ShouldRetryOn(Exception ex)
+        public static bool ShouldRetryOn(Exception ex)
         {
-            if (ex == null)
-            {
-                return false;
-            }
-
             var sqlException = ex as SqlException;
             if (sqlException != null)
             {
@@ -31,18 +23,30 @@ namespace System.Data.Entity.SqlServer
                             // Operation on server YYYY and database XXXX is in progress.  Please wait a few minutes before trying again.
                         case 40627:
                             // SQL Error Code: 40613
-                            // Database XXXX on server YYYY is not currently available. Please retry the connection later. If the problem persists, contact customer 
-                            // support, and provide them the session tracing ID of ZZZZZ.
+                            // Database XXXX on server YYYY is not currently available. Please retry the connection later.
+                            // If the problem persists, contact customer support, and provide them the session tracing ID of ZZZZZ.
                         case 40613:
+                            // SQL Error Code: 40545
+                            // The service is experiencing a problem that is currently under investigation. Incident ID: %ls. Code: %d.
+                        case 40545:
+                            // SQL Error Code: 40540
+                            // The service has encountered an error processing your request. Please try again.
+                        case 40540:
                             // SQL Error Code: 40501
                             // The service is currently busy. Retry the request after 10 seconds. Code: (reason code to be decoded).
                         case 40501:
                             // SQL Error Code: 40197
                             // The service has encountered an error processing your request. Please try again.
                         case 40197:
-                            // SQL Error Code: 40143
-                            // The service has encountered an error processing your request. Please try again.
-                        case 40143:
+                            // SQL Error Code: 10929
+                            // Resource ID: %d. The %s minimum guarantee is %d, maximum limit is %d and the current usage for the database is %d.
+                            // However, the server is currently too busy to support requests greater than %d for this database.
+                            // For more information, see http://go.microsoft.com/fwlink/?LinkId=267637. Otherwise, please try again.
+                        case 10929:
+                            // SQL Error Code: 10928
+                            // Resource ID: %d. The %s limit for the database is %d and has been reached. For more information,
+                            // see http://go.microsoft.com/fwlink/?LinkId=267637.
+                        case 10928:
                             // SQL Error Code: 10060
                             // A network-related or instance-specific error occurred while establishing a connection to SQL Server. 
                             // The server was not found or was not accessible. Verify that the instance name is correct and that SQL Server 
@@ -60,9 +64,10 @@ namespace System.Data.Entity.SqlServer
                         case 10053:
                             // SQL Error Code: 233
                             // The client was unable to establish a connection because of an error during connection initialization process before login. 
-                            // Possible causes include the following: the client tried to connect to an unsupported version of SQL Server; the server was too busy 
-                            // to accept new connections; or there was a resource limitation (insufficient memory or maximum allowed connections) on the server. 
-                            // (provider: TCP Provider, error: 0 - An existing connection was forcibly closed by the remote host.)
+                            // Possible causes include the following: the client tried to connect to an unsupported version of SQL Server;
+                            // the server was too busy to accept new connections; or there was a resource limitation (insufficient memory or maximum
+                            // allowed connections) on the server. (provider: TCP Provider, error: 0 - An existing connection was forcibly closed by
+                            // the remote host.)
                         case 233:
                             // SQL Error Code: 64
                             // A connection was successfully established with the server, but then an error occurred during the login process. 
@@ -85,24 +90,6 @@ namespace System.Data.Entity.SqlServer
             if (ex is TimeoutException)
             {
                 return true;
-            }
-
-            var entityException = ex as EntityException;
-            if (entityException != null)
-            {
-                return ShouldRetryOn(entityException.InnerException);
-            }
-
-            var dbUpdateException = ex as DbUpdateException;
-            if (dbUpdateException != null)
-            {
-                return ShouldRetryOn(dbUpdateException.InnerException);
-            }
-
-            var updateException = ex as UpdateException;
-            if (updateException != null)
-            {
-                return ShouldRetryOn(updateException.InnerException);
             }
 
             return false;

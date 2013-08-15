@@ -8,7 +8,10 @@ namespace System.Data.Entity.Internal
     using System.Data.Entity.Migrations;
     using System.Data.Entity.Migrations.Infrastructure;
     using System.Data.Entity.Migrations.Sql;
+    using System.Data.Entity.Migrations.Utilities;
     using System.Data.Entity.Utilities;
+    using System.Diagnostics;
+    using System.Diagnostics.CodeAnalysis;
 
     /// <summary>
     ///     Handles creating databases either using the core provider or the Migrations pipeline.
@@ -49,23 +52,14 @@ namespace System.Data.Entity.Internal
             if (internalContext.CodeFirstModel != null
                 && _resolver.GetService<MigrationSqlGenerator>(internalContext.ProviderName) != null)
             {
-                var contextType = internalContext.Owner.GetType();
+                if (!IsMigrationsConfigured(internalContext.Owner.GetType()))
+                {
+                    var migrator = createMigrator(
+                        GetMigrationsConfiguration(internalContext),
+                        internalContext.Owner);
 
-                var migrator = createMigrator(
-                    new DbMigrationsConfiguration
-                        {
-                            ContextType = contextType,
-                            AutomaticMigrationsEnabled = true,
-                            MigrationsAssembly = contextType.Assembly,
-                            MigrationsNamespace = contextType.Namespace,
-                            ContextKey = internalContext.ContextKey,
-                            TargetDatabase =
-                                new DbConnectionInfo(
-                                internalContext.OriginalConnectionString, internalContext.ProviderName)
-                        },
-                    internalContext.Owner);
-
-                migrator.Update();
+                    migrator.Update();
+                }
             }
             else
             {
@@ -76,6 +70,41 @@ namespace System.Data.Entity.Internal
             // If the database is created explicitly, then this is treated as overriding the
             // database initialization strategy, so make it as already run.
             internalContext.MarkDatabaseInitialized();
+        }
+
+        [SuppressMessage("Microsoft.Design", "CA1031:DoNotCatchGeneralExceptionTypes")]
+        public static bool IsMigrationsConfigured(Type contextType)
+        {
+            DebugCheck.NotNull(contextType);
+
+            try
+            {
+                return new MigrationsConfigurationFinder(new TypeFinder(contextType.Assembly))
+                           .FindMigrationsConfiguration(contextType, null) != null;
+            }
+            catch (Exception ex)
+            {
+                Debug.Fail("Exception ignored while attempting to create migration configuration: " + ex);
+                return false;
+            }
+        }
+
+        public static DbMigrationsConfiguration GetMigrationsConfiguration(InternalContext internalContext)
+        {
+            DebugCheck.NotNull(internalContext);
+
+            var contextType = internalContext.Owner.GetType();
+
+            return new DbMigrationsConfiguration
+                {
+                    ContextType = contextType,
+                    AutomaticMigrationsEnabled = true,
+                    MigrationsAssembly = contextType.Assembly,
+                    MigrationsNamespace = contextType.Namespace,
+                    ContextKey = internalContext.ContextKey,
+                    TargetDatabase = new DbConnectionInfo(internalContext.OriginalConnectionString, internalContext.ProviderName),
+                    CommandTimeout = internalContext.CommandTimeout
+                };
         }
     }
 }

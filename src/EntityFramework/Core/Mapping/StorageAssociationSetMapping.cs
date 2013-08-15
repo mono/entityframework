@@ -6,6 +6,7 @@ namespace System.Data.Entity.Core.Mapping
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Utilities;
     using System.Diagnostics;
+    using System.Diagnostics.CodeAnalysis;
     using System.Linq;
 
     /// <summary>
@@ -27,7 +28,7 @@ namespace System.Data.Entity.Core.Mapping
     ///     above example. And it is possible to access the AssociationTypeMap underneath it.
     ///     There will be only one TypeMap under AssociationSetMap.
     /// </example>
-    internal class StorageAssociationSetMapping : StorageSetMapping
+    public class StorageAssociationSetMapping : StorageSetMapping
     {
         private readonly List<DataModelAnnotation> _annotationsList = new List<DataModelAnnotation>();
 
@@ -36,7 +37,7 @@ namespace System.Data.Entity.Core.Mapping
         /// </summary>
         /// <param name="extent"> Represents the Association Set Metadata object. Will change this to Extent instead of MemberMetadata. </param>
         /// <param name="entityContainerMapping"> The entityContainerMapping mapping that contains this Set mapping </param>
-        internal StorageAssociationSetMapping(AssociationSet extent, StorageEntityContainerMapping entityContainerMapping)
+        public StorageAssociationSetMapping(AssociationSet extent, StorageEntityContainerMapping entityContainerMapping)
             : base(extent, entityContainerMapping)
         {
         }
@@ -67,10 +68,10 @@ namespace System.Data.Entity.Core.Mapping
         /// </summary>
         internal StorageAssociationSetModificationFunctionMapping ModificationFunctionMapping { get; set; }
 
-        internal EntitySet StoreEntitySet
+        public EntitySet StoreEntitySet
         {
             get { return (SingleFragment != null) ? SingleFragment.TableSet : null; }
-            set
+            internal set
             {
                 DebugCheck.NotNull(value);
                 Debug.Assert(SingleFragment != null);
@@ -92,10 +93,10 @@ namespace System.Data.Entity.Core.Mapping
                            ? SingleFragment.Properties.OfType<StorageEndPropertyMapping>().FirstOrDefault()
                            : null;
             }
-            set
+            internal set
             {
                 DebugCheck.NotNull(value);
-                Debug.Assert(SingleFragment != null);
+                DebugCheck.NotNull(SingleFragment);
                 Debug.Assert(SingleFragment.Properties.Count == 0);
 
                 SingleFragment.AddProperty(value);
@@ -110,17 +111,17 @@ namespace System.Data.Entity.Core.Mapping
                            ? SingleFragment.Properties.OfType<StorageEndPropertyMapping>().ElementAtOrDefault(1)
                            : null;
             }
-            set
+            internal set
             {
                 DebugCheck.NotNull(value);
-                Debug.Assert(SingleFragment != null);
+                DebugCheck.NotNull(SingleFragment);
                 Debug.Assert(SingleFragment.Properties.Count == 1);
 
                 SingleFragment.AddProperty(value);
             }
         }
 
-        public virtual IList<DataModelAnnotation> Annotations
+        internal virtual IList<DataModelAnnotation> Annotations
         {
             get { return _annotationsList; }
         }
@@ -132,6 +133,15 @@ namespace System.Data.Entity.Core.Mapping
                 return (SingleFragment != null)
                            ? SingleFragment.ColumnConditions
                            : Enumerable.Empty<StorageConditionPropertyMapping>();
+            }
+        }
+
+        [SuppressMessage("Microsoft.Design", "CA1011:ConsiderPassingBaseTypesAsParameters")]
+        public void AddProperty(StorageEndPropertyMapping mapping)
+        {
+            if (SingleFragment != null)
+            {
+                SingleFragment.AddProperty(mapping);
             }
         }
 

@@ -20,7 +20,6 @@ namespace System.Data.Entity.Core.Metadata.Edm
     /// <summary>
     ///     Class for representing a collection of items in Store space.
     /// </summary>
-    [CLSCompliant(false)]
     public partial class StoreItemCollection : ItemCollection
     {
         private double _schemaVersion = XmlConstants.UndefinedVersion;
@@ -53,7 +52,8 @@ namespace System.Data.Entity.Core.Metadata.Edm
 
         // used by EntityStoreSchemaGenerator to start with an empty (primitive types only) StoreItemCollection and 
         // add types discovered from the database
-        internal StoreItemCollection(DbProviderFactory factory, DbProviderManifest manifest, string providerInvariantName, string providerManifestToken)
+        internal StoreItemCollection(
+            DbProviderFactory factory, DbProviderManifest manifest, string providerInvariantName, string providerManifestToken)
             : base(DataSpace.SSpace)
         {
             DebugCheck.NotNull(factory);
@@ -68,21 +68,23 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        /// constructor that loads the metadata files from the specified xmlReaders, and returns the list of errors
-        /// encountered during load as the out parameter errors.
-        /// </summary> 
-        /// <param name="xmlReaders">xmlReaders where the CDM schemas are loaded</param> 
+        ///     constructor that loads the metadata files from the specified xmlReaders, and returns the list of errors
+        ///     encountered during load as the out parameter errors.
+        /// </summary>
+        /// <param name="xmlReaders">xmlReaders where the CDM schemas are loaded</param>
         /// <param name="filePaths">the paths where the files can be found that match the xml readers collection</param>
-        /// <param name="errors">An out parameter to return the collection of errors encountered while loading</param> 
-        private StoreItemCollection(IEnumerable<XmlReader> xmlReaders,
-                                     ReadOnlyCollection<string> filePaths,
-                                     IDbDependencyResolver resolver,
-                                     out IList<EdmSchemaError> errors)
+        /// <param name="errors">An out parameter to return the collection of errors encountered while loading</param>
+        private StoreItemCollection(
+            IEnumerable<XmlReader> xmlReaders,
+            ReadOnlyCollection<string> filePaths,
+            IDbDependencyResolver resolver,
+            out IList<EdmSchemaError> errors)
             : base(DataSpace.SSpace)
         {
             DebugCheck.NotNull(xmlReaders);
 
-            errors = this.Init(xmlReaders, filePaths, /* throwOnError */ false, resolver,
+            errors = Init(
+                xmlReaders, filePaths, /* throwOnError */ false, resolver,
                 out _providerManifest,
                 out _providerFactory,
                 out _providerInvariantName,
@@ -114,10 +116,9 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     Public constructor that loads the metadata files from the specified xmlReaders.
-        ///     Throws when encounter errors.
+        ///     Initializes a new instance of the <see cref="T:System.Data.Entity.Core.Metadata.Edm.StoreItemCollection" /> class using the specified XMLReader.
         /// </summary>
-        /// <param name="xmlReaders"> xmlReaders where the CDM schemas are loaded </param>
+        /// <param name="xmlReaders">The XMLReader used to create metadata.</param>
         public StoreItemCollection(IEnumerable<XmlReader> xmlReaders)
             : base(DataSpace.SSpace)
         {
@@ -127,7 +128,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
             var composite = MetadataArtifactLoader.CreateCompositeFromXmlReaders(xmlReaders);
             Init(
                 composite.GetReaders(),
-                composite.GetPaths(), 
+                composite.GetPaths(),
                 /* throwOnError */ true,
                 /* resolver */ null,
                 out _providerManifest,
@@ -143,7 +144,6 @@ namespace System.Data.Entity.Core.Metadata.Edm
             Check.NotNull(model, "model");
             DebugCheck.NotNull(model.ProviderInfo);
             DebugCheck.NotNull(model.ProviderManifest);
-            Debug.Assert(model.Version > 0);
 
             _providerManifest = model.ProviderManifest;
             _providerInvariantName = model.ProviderInfo.ProviderInvariantName;
@@ -153,7 +153,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
 
             LoadProviderManifest(_providerManifest);
 
-            _schemaVersion = model.Version;
+            _schemaVersion = model.SchemaVersion;
 
             model.Validate();
 
@@ -166,13 +166,9 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     Constructs the new instance of StoreItemCollection
-        ///     with the list of CDM files provided.
+        ///     Initializes a new instance of the <see cref="T:System.Data.Entity.Core.Metadata.Edm.StoreItemCollection" /> class using the specified file paths.
         /// </summary>
-        /// <param name="filePaths"> paths where the CDM schemas are loaded </param>
-        /// <exception cref="ArgumentException">Thrown if path name is not valid</exception>
-        /// <exception cref="System.ArgumentNullException">thrown if paths argument is null</exception>
-        /// <exception cref="System.Data.Entity.Core.MetadataException">For errors related to invalid schemas.</exception>
+        /// <param name="filePaths">The file paths used to create metadata.</param>
         [ResourceExposure(ResourceScope.Machine)] //Exposes the file path names which are a Machine resource
         [ResourceConsumption(ResourceScope.Machine)]
         //For MetadataArtifactLoader.CreateCompositeFromFilePaths method call but we do not create the file paths in this method 
@@ -215,7 +211,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
 
         private IList<EdmSchemaError> Init(
             IEnumerable<XmlReader> xmlReaders,
-            IEnumerable<string> filePaths, 
+            IEnumerable<string> filePaths,
             bool throwOnError,
             IDbDependencyResolver resolver,
             out DbProviderManifest providerManifest,
@@ -262,7 +258,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
             get { return _queryCacheManager; }
         }
 
-        public DbProviderFactory StoreProviderFactory
+        public virtual DbProviderFactory StoreProviderFactory
         {
             get { return _providerFactory; }
         }
@@ -272,19 +268,18 @@ namespace System.Data.Entity.Core.Metadata.Edm
             get { return _providerManifest; }
         }
 
-        public string StoreProviderManifestToken
+        public virtual string StoreProviderManifestToken
         {
             get { return _providerManifestToken; }
         }
 
-        public string StoreProviderInvariantName
+        public virtual string StoreProviderInvariantName
         {
-            get { return _providerInvariantName;  }
+            get { return _providerInvariantName; }
         }
 
-        /// <summary>
-        ///     Version of this StoreItemCollection represents.
-        /// </summary>
+        /// <summary>Gets the version of the store schema for this collection.</summary>
+        /// <returns>The version of the store schema for this collection.</returns>
         public Double StoreSchemaVersion
         {
             get { return _schemaVersion; }
@@ -292,9 +287,14 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     Get the list of primitive types for the given space
+        ///     Returns a collection of the <see cref="T:System.Data.Entity.Core.Metadata.Edm.PrimitiveType" /> objects.
         /// </summary>
-        /// <returns> </returns>
+        /// <returns>
+        ///     A <see cref="T:System.Collections.ObjectModel.ReadOnlyCollection`1" /> object that represents the collection of the
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Metadata.Edm.PrimitiveType" />
+        ///     objects.
+        /// </returns>
         [SuppressMessage("Microsoft.Design", "CA1024:UsePropertiesWhereAppropriate")]
         public virtual ReadOnlyCollection<PrimitiveType> GetPrimitiveTypes()
         {
@@ -441,27 +441,29 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        /// Factory method that creates a <see cref="StoreItemCollection"/>. 
+        ///     Factory method that creates a <see cref="StoreItemCollection" />.
         /// </summary>
-        /// <param name="xmlReaders">SSDL artifacts to load. Must not be <c>null</c>.</param>
+        /// <param name="xmlReaders">
+        ///     SSDL artifacts to load. Must not be <c>null</c>.
+        /// </param>
         /// <param name="filePaths">
-        /// Paths to SSDL artifacts. Used in error messages. Can be <c>null</c> in which case 
-        /// the base Uri of the XmlReader will be used as a path.
+        ///     Paths to SSDL artifacts. Used in error messages. Can be <c>null</c> in which case
+        ///     the base Uri of the XmlReader will be used as a path.
         /// </param>
         /// <param name="errors">
-        /// The collection of errors encountered while loading.
+        ///     The collection of errors encountered while loading.
         /// </param>
         /// <param name="resolver">
-        /// Custom resolver. Currently used to resolve DbProviderServices implementation. If <c>null</c>
-        /// the default resolver will be used.
+        ///     Custom resolver. Currently used to resolve DbProviderServices implementation. If <c>null</c>
+        ///     the default resolver will be used.
         /// </param>
         /// <returns>
-        /// <see cref="StoreItemCollection"/> instance if no errors encountered. Otherwise <c>null</c>.
+        ///     <see cref="StoreItemCollection" /> instance if no errors encountered. Otherwise <c>null</c>.
         /// </returns>
         public static StoreItemCollection Create(
             IEnumerable<XmlReader> xmlReaders,
             ReadOnlyCollection<string> filePaths,
-            IDbDependencyResolver resolver, 
+            IDbDependencyResolver resolver,
             out IList<EdmSchemaError> errors)
         {
             Check.NotNull(xmlReaders, "xmlReaders");

@@ -4,6 +4,7 @@ namespace System.Data.Entity.Edm
 {
     using System.Collections.Generic;
     using System.Data.Entity.Core.Metadata.Edm;
+    using System.Diagnostics;
     using System.Linq;
 
     internal abstract class EdmModelVisitor
@@ -45,7 +46,7 @@ namespace System.Data.Entity.Edm
         {
             if (item != null)
             {
-                if (item.Annotations.Any())
+                if (item.Annotations.Count > 0)
                 {
                     VisitAnnotations(item, item.Annotations);
                 }
@@ -62,14 +63,19 @@ namespace System.Data.Entity.Edm
             VisitMetadataItem(item);
             if (item != null)
             {
-                if (item.EntitySets.Any())
+                if (item.EntitySets.Count > 0)
                 {
                     VisitEntitySets(item, item.EntitySets);
                 }
 
-                if (item.AssociationSets.Any())
+                if (item.AssociationSets.Count > 0)
                 {
                     VisitAssociationSets(item, item.AssociationSets);
+                }
+
+                if (item.FunctionImports.Count > 0)
+                {
+                    VisitFunctionImports(item, item.FunctionImports);
                 }
             }
         }
@@ -78,10 +84,17 @@ namespace System.Data.Entity.Edm
         {
             VisitMetadataItem(function);
 
-            if ((function != null)
-                && (function.Parameters != null))
+            if (function != null)
             {
-                VisitFunctionParameters(function.Parameters);
+                if (function.Parameters != null)
+                {
+                    VisitFunctionParameters(function.Parameters);
+                }
+
+                if (function.ReturnParameters != null)
+                {
+                    VisitFunctionReturnParameters(function.ReturnParameters);
+                }
             }
         }
 
@@ -119,6 +132,46 @@ namespace System.Data.Entity.Edm
             VisitMetadataItem(item);
         }
 
+        protected internal virtual void VisitFunctionImports(EntityContainer container, IEnumerable<EdmFunction> functionImports)
+        {
+            VisitCollection(functionImports, VisitFunctionImport);
+        }
+
+        protected internal virtual void VisitFunctionImport(EdmFunction functionImport)
+        {
+            VisitMetadataItem(functionImport);
+
+            if (functionImport.Parameters != null)
+            {
+                VisitFunctionImportParameters(functionImport.Parameters);
+            }
+
+            if (functionImport.ReturnParameters != null)
+            {
+                VisitFunctionImportReturnParameters(functionImport.ReturnParameters);
+            }
+        }
+
+        protected internal virtual void VisitFunctionImportParameters(IEnumerable<FunctionParameter> parameters)
+        {
+            VisitCollection(parameters, VisitFunctionImportParameter);
+        }
+
+        protected internal virtual void VisitFunctionImportParameter(FunctionParameter parameter)
+        {
+            VisitMetadataItem(parameter);
+        }
+
+        protected internal virtual void VisitFunctionImportReturnParameters(IEnumerable<FunctionParameter> parameters)
+        {
+            VisitCollection(parameters, VisitFunctionImportReturnParameter);
+        }
+
+        protected internal virtual void VisitFunctionImportReturnParameter(FunctionParameter parameter)
+        {
+            VisitMetadataItem(parameter);
+        }
+
         protected virtual void VisitComplexTypes(IEnumerable<ComplexType> complexTypes)
         {
             VisitCollection(complexTypes, VisitComplexType);
@@ -127,7 +180,7 @@ namespace System.Data.Entity.Edm
         protected virtual void VisitComplexType(ComplexType item)
         {
             VisitMetadataItem(item);
-            if (item.Properties.Any())
+            if (item.Properties.Count > 0)
             {
                 VisitCollection(item.Properties, VisitEdmProperty);
             }
@@ -163,12 +216,65 @@ namespace System.Data.Entity.Edm
             VisitMetadataItem(functionParameter);
         }
 
+        protected internal virtual void VisitFunctionReturnParameters(IEnumerable<FunctionParameter> returnParameters)
+        {
+            VisitCollection(returnParameters, VisitFunctionReturnParameter);
+        }
+
+        protected internal virtual void VisitFunctionReturnParameter(FunctionParameter returnParameter)
+        {
+            VisitMetadataItem(returnParameter);
+
+            VisitEdmType(returnParameter.TypeUsage.EdmType);
+        }
+
+        protected internal virtual void VisitEdmType(EdmType edmType)
+        {
+            switch (edmType.BuiltInTypeKind)
+            {
+                case BuiltInTypeKind.PrimitiveType:
+                    VisitPrimitiveType((PrimitiveType)edmType);
+                    break;
+                case BuiltInTypeKind.CollectionType:
+                    VisitCollectionType((CollectionType)edmType);
+                    break;
+                case BuiltInTypeKind.RowType:
+                    VisitRowType((RowType)edmType);
+                    break;
+                default:
+                    Debug.Fail("Unsupported EDM Type.");
+                    break;
+            }
+        }
+
+        protected internal virtual void VisitCollectionType(CollectionType collectionType)
+        {
+            VisitMetadataItem(collectionType);
+
+            VisitEdmType(collectionType.TypeUsage.EdmType);
+        }
+
+        protected internal virtual void VisitRowType(RowType rowType)
+        {
+            VisitMetadataItem(rowType);
+
+            if (rowType.DeclaredProperties.Count > 0)
+            {
+                VisitCollection(rowType.DeclaredProperties, VisitEdmProperty);
+            }
+        }
+
+        protected internal virtual void VisitPrimitiveType(PrimitiveType primitiveType)
+        {
+            VisitMetadataItem(primitiveType);
+        }
+
         protected virtual void VisitEdmEnumType(EnumType item)
         {
             VisitMetadataItem(item);
             if (item != null)
             {
-                if (item.Members.Any())
+                if (item.Members.Count > 0)
                 {
                     VisitEnumMembers(item, item.Members);
                 }
@@ -180,29 +286,30 @@ namespace System.Data.Entity.Edm
             VisitCollection(members, VisitEdmEnumTypeMember);
         }
 
-        protected virtual void VisitEdmEntityType(EntityType item)
+        protected internal virtual void VisitEdmEntityType(EntityType item)
         {
             VisitMetadataItem(item);
             if (item != null)
             {
-                if (item.DeclaredKeyProperties.Any())
+                if (item.BaseType == null
+                    && item.KeyProperties.Count > 0)
                 {
-                    VisitDeclaredKeyProperties(item, item.DeclaredKeyProperties);
+                    VisitKeyProperties(item, item.KeyProperties);
                 }
 
-                if (item.DeclaredProperties.Any())
+                if (item.DeclaredProperties.Count > 0)
                 {
                     VisitDeclaredProperties(item, item.DeclaredProperties);
                 }
 
-                if (item.DeclaredNavigationProperties.Any())
+                if (item.DeclaredNavigationProperties.Count > 0)
                 {
                     VisitDeclaredNavigationProperties(item, item.DeclaredNavigationProperties);
                 }
             }
         }
 
-        protected virtual void VisitDeclaredKeyProperties(EntityType entityType, IList<EdmProperty> properties)
+        protected virtual void VisitKeyProperties(EntityType entityType, IList<EdmProperty> properties)
         {
             VisitCollection(properties, VisitEdmProperty);
         }
@@ -223,7 +330,7 @@ namespace System.Data.Entity.Edm
             VisitCollection(associationTypes, VisitEdmAssociationType);
         }
 
-        protected virtual void VisitEdmAssociationType(AssociationType item)
+        protected internal virtual void VisitEdmAssociationType(AssociationType item)
         {
             VisitMetadataItem(item);
 
@@ -244,7 +351,7 @@ namespace System.Data.Entity.Edm
             }
         }
 
-        protected virtual void VisitEdmProperty(EdmProperty item)
+        protected internal virtual void VisitEdmProperty(EdmProperty item)
         {
             VisitMetadataItem(item);
         }

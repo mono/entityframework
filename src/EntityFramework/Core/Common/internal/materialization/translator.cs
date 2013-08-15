@@ -35,10 +35,8 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
         ///     a ShaperFactory which can be used to materialize results for a query.
         /// </summary>
         internal virtual ShaperFactory<T> TranslateColumnMap<T>(
-            QueryCacheManager queryCacheManager, ColumnMap columnMap, MetadataWorkspace workspace, SpanIndex spanIndex,
-            MergeOption mergeOption, bool valueLayer)
+            ColumnMap columnMap, MetadataWorkspace workspace, SpanIndex spanIndex, MergeOption mergeOption, bool valueLayer)
         {
-            DebugCheck.NotNull(queryCacheManager);
             DebugCheck.NotNull(columnMap);
             DebugCheck.NotNull(workspace);
 
@@ -49,6 +47,7 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
             var columnMapKey = ColumnMapKeyBuilder.GetColumnMapKey(columnMap, spanIndex);
             var cacheKey = new ShaperFactoryQueryCacheKey<T>(columnMapKey, mergeOption, valueLayer);
 
+            var queryCacheManager = workspace.GetQueryCacheManager();
             if (queryCacheManager.TryCacheLookup(cacheKey, out result))
             {
                 return result;
@@ -87,7 +86,6 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
         internal static ShaperFactory TranslateColumnMap(
             Translator translator,
             Type elementType,
-            QueryCacheManager queryCacheManager,
             ColumnMap columnMap,
             MetadataWorkspace workspace,
             SpanIndex spanIndex,
@@ -95,14 +93,13 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
             bool valueLayer)
         {
             DebugCheck.NotNull(elementType);
-            DebugCheck.NotNull(queryCacheManager);
             DebugCheck.NotNull(columnMap);
             DebugCheck.NotNull(workspace);
 
             var typedCreateMethod = GenericTranslateColumnMap.MakeGenericMethod(elementType);
 
             return (ShaperFactory)typedCreateMethod.Invoke(
-                translator, new object[] { queryCacheManager, columnMap, workspace, spanIndex, mergeOption, valueLayer });
+                translator, new object[] { columnMap, workspace, spanIndex, mergeOption, valueLayer });
         }
 
         [SuppressMessage("Microsoft.Maintainability", "CA1506:AvoidExcessiveClassCoupling")]
@@ -209,7 +206,7 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
                 {
                     var complexType = (ComplexType)columnMap.Type.EdmType;
                     var clrType = DetermineClrType(complexType);
-                    var constructor = GetConstructor(clrType);
+                    var constructor = DelegateFactory.GetConstructorForType(clrType);
 
                     // Build expressions to read the property values from the source data 
                     // reader and bind them to their target properties
@@ -272,7 +269,7 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
                     // We have all the property bindings now; go ahead and build the expression to
                     // construct the entity or proxy and store the property values.  We'll wrap it with more
                     // stuff that needs to happen (or not) below.
-                    var proxyTypeInfo = EntityProxyFactory.GetProxyType(oSpaceType);
+                    var proxyTypeInfo = EntityProxyFactory.GetProxyType(oSpaceType, _workspace);
 
                     // If no proxy type exists for the entity, construct the regular entity object.
                     // If a proxy type does exist, examine the ObjectContext.ContextOptions.ProxyCreationEnabled flag
@@ -374,7 +371,7 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
                 }
                 else
                 {
-                    var constructor = GetConstructor(clrType);
+                    var constructor = DelegateFactory.GetConstructorForType(clrType);
                     constructEntity = Expression.MemberInit(Expression.New(constructor), propertyBindings);
                     actualType = clrType;
                 }
@@ -417,9 +414,9 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
                 {
                     var edmProperty = mapping.GetPropertyMap(properties[i].Name).ClrProperty;
 
-                    DelegateFactory.ValidateSetterProperty(edmProperty.PropertyInfo);
-                    var propertyAccessor = edmProperty.PropertyInfo.GetSetMethod(nonPublic: true);
-                    var propertyType = edmProperty.PropertyInfo.PropertyType;
+                    var propertyInfoForSet = DelegateFactory.ValidateSetterProperty(edmProperty.PropertyInfo);
+                    var propertyAccessor = propertyInfoForSet.GetSetMethod(nonPublic: true);
+                    var propertyType = propertyInfoForSet.PropertyType;
 
                     // get translation of property value
                     var valueReader = columnMap.Properties[i].Accept(this, new TranslatorArg(propertyType)).Expression;
@@ -435,37 +432,9 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
                         _currentCoordinatorScratchpad.AddExpressionWithErrorHandling(valueReader, valueReaderWithErrorHandling);
                     }
 
-                    var binding = Expression.Bind(GetProperty(propertyAccessor, edmProperty.EntityDeclaringType), valueReader);
-                    result.Add(binding);
+                    result.Add(Expression.Bind(propertyInfoForSet, valueReader));
                 }
                 return result;
-            }
-
-            /// <summary>
-            ///     Gets the PropertyInfo representing the property with which the given setter method is associated.
-            ///     This code is taken from Expression.Bind(MethodInfo) but adapted to take a type such that it
-            ///     will work in cases in which the property was declared on a generic base class.  In such cases,
-            ///     the declaringType needs to be the actual entity type, rather than the base class type.  Note that
-            ///     declaringType can be null, in which case the setterMethod.DeclaringType is used.
-            /// </summary>
-            private static PropertyInfo GetProperty(MethodInfo setterMethod, Type declaringType)
-            {
-                if (declaringType == null)
-                {
-                    declaringType = setterMethod.DeclaringType;
-                }
-                var bindingAttr = BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance;
-                foreach (var propertyInfo in declaringType.GetProperties(bindingAttr))
-                {
-                    if (propertyInfo.GetSetMethod(nonPublic: true) == setterMethod)
-                    {
-                        return propertyInfo;
-                    }
-                }
-                Debug.Assert(
-                    false,
-                    "Should always find a property for the setterMethod since we got the setter method from a property in the first place.");
-                return null;
             }
 
             /// <summary>
@@ -536,7 +505,7 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
             {
                 var multipleDiscriminatorPolymorphicColumnMapHelper =
                     Translator_MultipleDiscriminatorPolymorphicColumnMapHelper.MakeGenericMethod(arg.RequestedType);
-                var result = (Expression)multipleDiscriminatorPolymorphicColumnMapHelper.Invoke(this, new object[] { columnMap, arg });
+                var result = (Expression)multipleDiscriminatorPolymorphicColumnMapHelper.Invoke(this, new object[] { columnMap });
                 return new TranslatorResult(result, arg.RequestedType);
             }
 
@@ -818,7 +787,7 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
                         var elementType = spannedResultReader.Type.GetGenericArguments()[0];
 
                         var handleFullSpanCollectionMethod =
-                            CodeGenEmitter.Shaper_HandleFullSpanCollection.MakeGenericMethod(arg.RequestedType, elementType);
+                            CodeGenEmitter.Shaper_HandleFullSpanCollection.MakeGenericMethod(elementType);
                         result = Expression.Call(
                             CodeGenEmitter.Shaper_Parameter, handleFullSpanCollectionMethod, result, expressionToGetCoordinator,
                             Expression.Constant(targetMember));
@@ -829,8 +798,7 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
                             == spannedResultReader.Type)
                         {
                             // relationship span
-                            var handleRelationshipSpanMethod =
-                                CodeGenEmitter.Shaper_HandleRelationshipSpan.MakeGenericMethod(arg.RequestedType);
+                            var handleRelationshipSpanMethod = CodeGenEmitter.Shaper_HandleRelationshipSpan;
                             result = Expression.Call(
                                 CodeGenEmitter.Shaper_Parameter, handleRelationshipSpanMethod, result, spannedResultReader,
                                 Expression.Constant(targetMember));
@@ -838,8 +806,7 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
                         else
                         {
                             // full span element
-                            var handleFullSpanElementMethod = CodeGenEmitter.Shaper_HandleFullSpanElement.MakeGenericMethod(
-                                arg.RequestedType, spannedResultReader.Type);
+                            var handleFullSpanElementMethod = CodeGenEmitter.Shaper_HandleFullSpanElement;
                             result = Expression.Call(
                                 CodeGenEmitter.Shaper_Parameter, handleFullSpanElementMethod, result, spannedResultReader,
                                 Expression.Constant(targetMember));
@@ -980,7 +947,7 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
                         if (typeToInstantiate != listOfElementType)
                         {
                             coordinatorScratchpad.InitializeCollection = CodeGenEmitter.Emit_EnsureType(
-                                Expression.New(GetConstructor(typeToInstantiate)),
+                                DelegateFactory.GetNewExpressionForCollectionType(typeToInstantiate),
                                 typeof(ICollection<>).MakeGenericType(innerElementType));
                         }
                         result = CodeGenEmitter.Emit_EnsureType(result, arg.RequestedType);

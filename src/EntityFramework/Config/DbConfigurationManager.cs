@@ -28,7 +28,8 @@ namespace System.Data.Entity.Config
         private readonly DbConfigurationFinder _finder;
 
         private readonly Lazy<InternalConfiguration> _configuration;
-        private DbConfiguration _newConfiguration = new DbConfiguration();
+        private volatile DbConfiguration _newConfiguration;
+        private volatile Type _newConfigurationType = typeof(DbConfiguration);
 
         private readonly object _lock = new object();
 
@@ -49,8 +50,11 @@ namespace System.Data.Entity.Config
             _configuration = new Lazy<InternalConfiguration>(
                 () =>
                     {
-                        _newConfiguration.InternalConfiguration.Lock();
-                        return _newConfiguration.InternalConfiguration;
+                        var configuration = _newConfiguration
+                                            ?? _newConfigurationType.CreateInstance<DbConfiguration>(
+                                                Strings.CreateInstance_BadDbConfigurationType);
+                        configuration.InternalConfiguration.Lock();
+                        return configuration.InternalConfiguration;
                     });
         }
 
@@ -107,13 +111,23 @@ namespace System.Data.Entity.Config
             return _configuration.Value;
         }
 
-        public virtual void SetConfiguration(InternalConfiguration configuration, bool lookInConfig = true)
+        public virtual void SetConfigurationType(Type configurationType)
+        {
+            DebugCheck.NotNull(configurationType);
+
+            _newConfigurationType = configurationType;
+        }
+
+        public virtual void SetConfiguration(InternalConfiguration configuration)
         {
             DebugCheck.NotNull(configuration);
 
-            if (lookInConfig)
+            var configurationType = _loader.TryLoadFromConfig(AppConfig.DefaultInstance);
+            if (configurationType != null)
             {
-                configuration = _loader.TryLoadFromConfig(AppConfig.DefaultInstance) ?? configuration;
+                configuration = configurationType
+                    .CreateInstance<DbConfiguration>(Strings.CreateInstance_BadDbConfigurationType)
+                    .InternalConfiguration;
             }
 
             _newConfiguration = configuration.Owner;
@@ -156,13 +170,13 @@ namespace System.Data.Entity.Config
 
             if (!ConfigurationSet)
             {
-                var foundConfiguration =
+                var foundConfigurationType =
                     _loader.TryLoadFromConfig(AppConfig.DefaultInstance) ??
-                    _finder.TryCreateConfiguration(contextType);
+                    _finder.TryFindConfigurationType(contextType);
 
-                if (foundConfiguration != null)
+                if (foundConfigurationType != null)
                 {
-                    SetConfiguration(foundConfiguration, lookInConfig: false);
+                    SetConfigurationType(foundConfigurationType);
                 }
             }
             else if (!contextAssembly.IsDynamic // Don't throw for proxy contexts created in dynamic assemblies
@@ -191,18 +205,29 @@ namespace System.Data.Entity.Config
             get { return _configuration.IsValueCreated; }
         }
 
-        public virtual void PushConfiguration(AppConfig config, Type contextType)
+        public virtual bool PushConfiguration(AppConfig config, Type contextType)
         {
             DebugCheck.NotNull(config);
             DebugCheck.NotNull(contextType);
             Debug.Assert(typeof(DbContext).IsAssignableFrom(contextType));
 
-            var configuration = _loader.TryLoadFromConfig(config)
-                                ?? _finder.TryCreateConfiguration(contextType)
-                                ?? new DbConfiguration().InternalConfiguration;
+            // Perf optimization: if there is no change to the default app-domain config and if the
+            // context assembly has already been checked for configurations, then avoid creating
+            // and pushing a new configuration since it would be the same as the current one anyway.
+            if (config == AppConfig.DefaultInstance
+                && (contextType == typeof(DbContext) || _knownAssemblies.ContainsKey(contextType.Assembly)))
+            {
+                return false;
+            }
+
+            var configuration = (_loader.TryLoadFromConfig(config)
+                                 ?? _finder.TryFindConfigurationType(contextType)
+                                 ?? typeof(DbConfiguration))
+                .CreateInstance<DbConfiguration>(Strings.CreateInstance_BadDbConfigurationType)
+                .InternalConfiguration;
 
             configuration.SwitchInRootResolver(_configuration.Value.RootResolver);
-            configuration.AddAppConfigResolver(new AppConfigDependencyResolver(config));
+            configuration.AddAppConfigResolver(new AppConfigDependencyResolver(config, configuration));
 
             lock (_lock)
             {
@@ -210,6 +235,8 @@ namespace System.Data.Entity.Config
             }
 
             configuration.Lock();
+
+            return true;
         }
 
         public virtual void PopConfiguration(AppConfig config)

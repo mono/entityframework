@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
-namespace System.Data.Entity.ModelConfiguration.UnitTests
+namespace System.Data.Entity.ModelConfiguration
 {
     using System.Data.Entity.ModelConfiguration.Configuration;
     using System.Data.Entity.ModelConfiguration.Configuration.Types;
@@ -47,27 +47,27 @@ namespace System.Data.Entity.ModelConfiguration.UnitTests
         }
 
         [Fact]
-        public void MapToFunctions_should_call_method_on_internal_configuration()
+        public void MapToStoredProcedures_should_call_method_on_internal_configuration()
         {
             var mockEntityTypeConfiguration = new Mock<EntityTypeConfiguration>(typeof(Fixture));
             var entityConfiguration = new EntityTypeConfiguration<Fixture>(mockEntityTypeConfiguration.Object);
 
-            entityConfiguration.MapToFunctions();
+            entityConfiguration.MapToStoredProcedures();
 
-            mockEntityTypeConfiguration.Verify(e => e.MapToFunctions());
+            mockEntityTypeConfiguration.Verify(e => e.MapToStoredProcedures());
         }
 
         [Fact]
-        public void MapToFunctions_when_config_action_should_call_method_on_internal_configuration()
+        public void MapToStoredProcedures_when_config_action_should_call_method_on_internal_configuration()
         {
             var mockEntityTypeConfiguration = new Mock<EntityTypeConfiguration>(typeof(Fixture));
             var entityConfiguration = new EntityTypeConfiguration<Fixture>(mockEntityTypeConfiguration.Object);
 
             ModificationFunctionsConfiguration<Fixture> configuration = null;
 
-            entityConfiguration.MapToFunctions(c => { configuration = c; });
+            entityConfiguration.MapToStoredProcedures(c => { configuration = c; });
             
-            mockEntityTypeConfiguration.Verify(e => e.MapToFunctions(configuration.Configuration));
+            mockEntityTypeConfiguration.Verify(e => e.MapToStoredProcedures(configuration.Configuration));
         }
 
         [Fact]
@@ -110,8 +110,6 @@ namespace System.Data.Entity.ModelConfiguration.UnitTests
             Assert.Equal("A", ((EntityTypeConfiguration)entityConfiguration.Configuration).GetTableName().Name);
         }
 
-        #region Test Fixtures
-
         private class Fixture
         {
             public int Id { get; private set; }
@@ -129,7 +127,5 @@ namespace System.Data.Entity.ModelConfiguration.UnitTests
         private class C : A
         {
         }
-
-        #endregion
     }
 }

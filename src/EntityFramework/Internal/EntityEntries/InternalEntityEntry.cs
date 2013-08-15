@@ -13,6 +13,7 @@ namespace System.Data.Entity.Internal
     using System.Diagnostics;
     using System.Globalization;
     using System.Linq;
+    using System.Runtime.CompilerServices;
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
@@ -192,7 +193,7 @@ namespace System.Data.Entity.Internal
         ///     An asynchronous version of GetDatabaseValues, which
         ///     queries the database for copies of the values of the tracked entity as they currently exist in the database.
         /// </summary>
-        /// <returns> A Task containing the store values. </returns>
+        /// <returns> A task containing the store values. </returns>
         public virtual async Task<InternalPropertyValues> GetDatabaseValuesAsync(CancellationToken cancellationToken)
         {
             ValidateStateToGetValues("GetDatabaseValuesAsync", EntityState.Added);
@@ -229,7 +230,7 @@ namespace System.Data.Entity.Internal
             var quotedTypeName = String.Format(
                 CultureInfo.InvariantCulture,
                 "{0}.{1}",
-                DbHelpers.QuoteIdentifier(EntityType.Namespace),
+                DbHelpers.QuoteIdentifier(EntityType.NestingNamespace()),
                 DbHelpers.QuoteIdentifier(EntityType.Name));
 
             queryBuilder.AppendFormat(
@@ -332,6 +333,21 @@ namespace System.Data.Entity.Internal
 
             _internalContext.ObjectContext.Refresh(RefreshMode.StoreWins, Entity);
         }
+
+#if !NET40
+
+        /// <summary>
+        ///     An asynchronous version of Reload, which
+        ///     calls Refresh with StoreWins on the underlying state entry.
+        /// </summary>
+        public virtual Task ReloadAsync(CancellationToken cancellationToken)
+        {
+            ValidateStateToGetValues("ReloadAsync", EntityState.Added);
+
+            return _internalContext.ObjectContext.RefreshAsync(RefreshMode.StoreWins, Entity, cancellationToken);
+        }
+
+#endif
 
         #endregion
 
@@ -682,7 +698,7 @@ namespace System.Data.Entity.Internal
                 if (_edmEntityType == null)
                 {
                     var metadataWorkspace = _internalContext.ObjectContext.MetadataWorkspace;
-                    var oSpaceType = metadataWorkspace.GetItem<EntityType>(_entityType.FullName, DataSpace.OSpace);
+                    var oSpaceType = metadataWorkspace.GetItem<EntityType>(_entityType.FullNameWithNesting(), DataSpace.OSpace);
                     _edmEntityType = (EntityType)metadataWorkspace.GetEdmSpaceType(oSpaceType);
                 }
                 return _edmEntityType;
@@ -800,7 +816,7 @@ namespace System.Data.Entity.Internal
         /// <returns> A hash code for this instance, suitable for use in hashing algorithms and data structures like a hash table. </returns>
         public override int GetHashCode()
         {
-            return _entity.GetHashCode();
+            return RuntimeHelpers.GetHashCode(_entity);
         }
 
         #endregion

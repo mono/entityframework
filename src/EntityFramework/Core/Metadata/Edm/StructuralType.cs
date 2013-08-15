@@ -37,9 +37,10 @@ namespace System.Data.Entity.Core.Metadata.Edm
             _readOnlyMembers = _members.AsReadOnlyMetadataCollection();
         }
 
-        /// <summary>
-        ///     Returns the collection of members.
-        /// </summary>
+        /// <summary>Gets the list of members on this type.</summary>
+        /// <returns>
+        ///     A collection of type <see cref="T:System.Data.Entity.Core.Metadata.Edm.ReadOnlyMetadataCollection`1" /> that contains a set of members on this type.
+        /// </returns>
         [MetadataProperty(BuiltInTypeKind.EdmMember, true)]
         public ReadOnlyMetadataCollection<EdmMember> Members
         {
@@ -82,8 +83,31 @@ namespace System.Data.Entity.Core.Metadata.Edm
         /// <param name="member"> The member to add </param>
         public void AddMember(EdmMember member)
         {
+            AddMember(member, false);
+        }
+
+        /// <summary>
+        ///     Adds a member to this type.
+        /// </summary>
+        /// <param name="member">The member to add.</param>
+        /// <param name="forceAdd">
+        ///     Indicates whether the addition is forced, regardless of
+        ///     whether read-only is set.
+        /// </param>
+        /// <remarks>
+        ///     Adding a NavigationProperty to an EntityType introduces a circular dependency between
+        ///     EntityType and AssociationEndMember, which is worked around by calling this method.
+        ///     This is the case of OneToOneMappingBuilder, in the designer. Must not be used in other context.
+        /// </remarks>
+        internal void AddMember(EdmMember member, bool forceAdd)
+        {
             Check.NotNull(member, "member");
-            Util.ThrowIfReadOnly(this);
+
+            if (!forceAdd)
+            {
+                Util.ThrowIfReadOnly(this);
+            }
+
             Debug.Assert(
                 DataSpace == member.TypeUsage.EdmType.DataSpace || BuiltInTypeKind == BuiltInTypeKind.RowType,
                 "Wrong member type getting added in structural type");
@@ -105,7 +129,17 @@ namespace System.Data.Entity.Core.Metadata.Edm
                     DataSpace = (DataSpace)(-1);
                 }
             }
-            _members.Add(member);
+
+            if (_members.IsReadOnly && forceAdd)
+            {
+                _members.ResetReadOnly();
+                _members.Add(member);
+                _members.SetReadOnly();
+            }
+            else
+            {
+                _members.Add(member);
+            }
         }
 
         public virtual void RemoveMember(EdmMember member)
@@ -114,6 +148,18 @@ namespace System.Data.Entity.Core.Metadata.Edm
             Util.ThrowIfReadOnly(this);
 
             _members.Remove(member);
+        }
+
+        internal virtual bool HasMember(EdmMember member)
+        {
+            DebugCheck.NotNull(member);
+
+            return _members.Contains(member);
+        }
+
+        internal virtual void NotifyItemIdentityChanged()
+        {
+            _members.InvalidateCache();
         }
     }
 }

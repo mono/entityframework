@@ -14,8 +14,6 @@
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>..\EcmaPublicKey.snk</AssemblyOriginatorKeyFile>
     <DelaySign>true</DelaySign>
-    <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\..\</SolutionDir>
-    <RestorePackages>true</RestorePackages>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
@@ -96,16 +94,35 @@
     <Compile Include="..\SharedAssemblyVersionInfo.cs">
       <Link>Properties\SharedAssemblyVersionInfo.cs</Link>
     </Compile>
+    <Compile Include="..\Common\ByteExtensions.cs">
+      <Link>Utilities\ByteExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\Common\Check.cs">
+      <Link>Utilities\Check.cs</Link>
+    </Compile>
+    <Compile Include="..\Common\DatabaseName.cs">
+      <Link>Utilities\DatabaseName.cs</Link>
+    </Compile>
+    <Compile Include="..\Common\DebugCheck.cs">
+      <Link>Utilities\DebugCheck.cs</Link>
+    </Compile>
+    <Compile Include="..\Common\IEnumerableExtensions.cs">
+      <Link>Utilities\IEnumerableExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\Common\StringExtensions.cs">
+      <Link>Utilities\StringExtensions.cs</Link>
+    </Compile>
     <Compile Include="Config\AppConfigDependencyResolver.cs" />
     <Compile Include="Config\CachingDependencyResolver.cs" />
     <Compile Include="Config\CompositeResolver`.cs" />
     <Compile Include="Config\DbConfigurationEventArgs.cs" />
     <Compile Include="Config\DefaultInvariantNameResolver.cs" />
     <Compile Include="Config\DefaultProviderFactoryResolver.cs" />
+    <Compile Include="Config\DefaultExecutionStrategyResolver.cs" />
     <Compile Include="Config\ExecutionStrategyResolver.cs" />
     <Compile Include="Config\InvariantNameResolver.cs" />
+    <Compile Include="Config\NamedDbProviderService.cs" />
     <Compile Include="Config\TransientDependencyResolver.cs" />
-    <Compile Include="Config\ThreadLocalDependencyResolver.cs" />
     <Compile Include="Config\DatabaseInitializerResolver.cs" />
     <Compile Include="Config\DbConfiguration.cs" />
     <Compile Include="Config\DbConfigurationFinder.cs" />
@@ -211,15 +228,51 @@
     <Compile Include="Core\Common\CommandTrees\DbRefKeyExpression.cs" />
     <Compile Include="Core\Common\CommandTrees\DbUnionAllExpression.cs" />
     <Compile Include="Core\Common\CommandTrees\DbScanExpression.cs" />
+    <Compile Include="Core\Mapping\ViewGeneration\ContainerMappingViewGroup.cs" />
+    <Compile Include="Edm\Serialization\MetadataItemHelper.cs" />
+    <Compile Include="Migrations\Builders\ParameterBuilder.cs" />
+    <Compile Include="Infrastructure\CancelableDbCommandDispatcher.cs" />
+    <Compile Include="Infrastructure\DbCommandTreeDispatcher.cs" />
+    <Compile Include="Infrastructure\DbCommandDispatcher.cs" />
+    <Compile Include="Infrastructure\DbInterceptionContext.cs" />
+    <Compile Include="Infrastructure\DbInterceptor.cs" />
+    <Compile Include="Infrastructure\InternalDispatcher.cs" />
+    <Compile Include="Infrastructure\DispatcherBase.cs" />
+    <Compile Include="Infrastructure\Dispatchers.cs" />
+    <Compile Include="Infrastructure\EntityConnectionDispatcher.cs" />
+    <Compile Include="Infrastructure\ICancelableDbCommandInterceptor.cs" />
+    <Compile Include="Infrastructure\IDbCommandInterceptor.cs" />
+    <Compile Include="Infrastructure\IDbCommandTreeInterceptor.cs" />
+    <Compile Include="Infrastructure\IEntityConnectionInterceptor.cs" />
+    <Compile Include="Migrations\History\HistoryContextFactory.cs" />
+    <Compile Include="Migrations\Model\NotSupportedOperation.cs" />
+    <Compile Include="Migrations\Model\ParameterModel.cs" />
+    <Compile Include="Migrations\Model\DropProcedureOperation.cs" />
+    <Compile Include="Migrations\Model\PropertyModel.cs" />
+    <Compile Include="QueryableExtensions.cs" />
+    <Compile Include="TransactionalBehavior.cs" />
+    <Compile Include="Internal\InterceptableDbCommand.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="Core\Common\internal\materialization\CodeGenEmitter.cs" />
     <Compile Include="Core\Common\internal\materialization\CoordinatorFactory`.cs" />
     <Compile Include="Core\Common\internal\materialization\Coordinator`.cs" />
-    <Compile Include="Core\Mapping\IStructuralTypeMapping.cs" />
+    <Compile Include="Core\Mapping\StructuralTypeMapping.cs" />
+    <Compile Include="Core\Mapping\ViewGeneration\IViewAssemblyCache.cs" />
     <Compile Include="Core\Mapping\ViewGeneration\QueryRewriting\FragmentQueryKBChaseSupport.cs" />
+    <Compile Include="Core\Mapping\ViewGeneration\ViewAssemblyCache.cs" />
+    <Compile Include="Core\Mapping\ViewGeneration\ViewAssemblyChecker.cs" />
+    <Compile Include="Core\Mapping\ViewGeneration\ViewAssemblyScanner.cs" />
     <Compile Include="Core\Metadata\Edm\DbDatabaseMapping.cs" />
     <Compile Include="Core\Metadata\Edm\ForeignKeyBuilder.cs" />
     <Compile Include="Core\Metadata\Edm\IMetadataItem.cs" />
     <Compile Include="Core\Metadata\Edm\INamedDataModelItem.cs" />
+    <Compile Include="Core\Metadata\Edm\ExpensiveOSpaceLoader.cs" />
+    <Compile Include="Core\Metadata\ObjectLayer\CodeFirstOSpaceLoader.cs" />
+    <Compile Include="Core\Metadata\ObjectLayer\CodeFirstOSpaceTypeFactory.cs" />
+    <Compile Include="Core\Metadata\ObjectLayer\OSpaceTypeFactory.cs" />
+    <Compile Include="Core\Objects\DataClasses\EdmFunctionAttribute.cs" />
+    <Compile Include="Core\Objects\EntityFunctions.cs" />
     <Compile Include="Core\Objects\ExecutionOptions.cs" />
     <Compile Include="Core\Objects\Internal\BufferedDataReader.cs" />
     <Compile Include="Core\Objects\Internal\BufferedDataRecord.cs" />
@@ -323,7 +376,7 @@
     <Compile Include="Core\Common\EntitySql\TypeResolver.cs" />
     <Compile Include="Core\Common\EntitySql\ValueExpression.cs" />
     <Compile Include="Core\Common\EntityUtil.cs" />
-    <Compile Include="Core\Objects\ObjectReferenceEqualityComparer.cs" />
+    <Compile Include="Infrastructure\ObjectReferenceEqualityComparer.cs" />
     <Compile Include="Core\Query\ResultAssembly\BridgeDataReaderFactory.cs" />
     <Compile Include="DataAnnotations\MaxLengthAttribute.cs" />
     <Compile Include="DataAnnotations\MinLengthAttribute.cs" />
@@ -335,19 +388,23 @@
     <Compile Include="DataAnnotations\Schema\InversePropertyAttribute.cs" />
     <Compile Include="DataAnnotations\Schema\NotMappedAttribute.cs" />
     <Compile Include="DataAnnotations\Schema\TableAttribute.cs" />
+    <Compile Include="DbContextTransaction.cs" />
     <Compile Include="Edm\Serialization\MslXmlSchemaWriter.cs" />
+    <Compile Include="Infrastructure\DbProviderNameAttribute.cs" />
+    <Compile Include="Infrastructure\Net40DefaultDbProviderFactoryService.cs" />
+    <Compile Include="Migrations\Infrastructure\DynamicToFunctionModificationCommandConverter.cs" />
+    <Compile Include="Migrations\Infrastructure\ModificationCommandTreeGenerator.cs" />
+    <Compile Include="Migrations\Infrastructure\IDbMigration.cs" />
     <Compile Include="Infrastructure\DefaultDbProviderFactoryService.cs" />
+    <Compile Include="Infrastructure\DbConcurrencyException.cs" />
     <Compile Include="Infrastructure\DefaultManifestTokenService.cs" />
     <Compile Include="Infrastructure\IExecutionStrategy.cs" />
-    <Compile Include="Infrastructure\ExecutionStrategy.cs" />
+    <Compile Include="Infrastructure\ExecutionStrategyBase.cs" />
     <Compile Include="Infrastructure\ExecutionStrategyKey.cs" />
-    <Compile Include="Infrastructure\ExponentialRetryDelayStrategy.cs" />
     <Compile Include="Infrastructure\IDbModelCacheKeyProvider.cs" />
     <Compile Include="Infrastructure\IDbProviderFactoryService.cs" />
     <Compile Include="Infrastructure\IManifestTokenService.cs" />
     <Compile Include="Infrastructure\IProviderInvariantName.cs" />
-    <Compile Include="Infrastructure\IRetriableExceptionDetector.cs" />
-    <Compile Include="Infrastructure\IRetryDelayStrategy.cs" />
     <Compile Include="Infrastructure\Pluralization\CustomPluralizationEntry.cs" />
     <Compile Include="Infrastructure\Pluralization\EnglishPluralizationService.cs" />
     <Compile Include="Infrastructure\Pluralization\IPluralizationService.cs" />
@@ -363,23 +420,21 @@
     <Compile Include="Infrastructure\DbSqlQuery`.cs" />
     <Compile Include="Infrastructure\IDbAsyncEnumerator.cs" />
     <Compile Include="Infrastructure\IDbAsyncQueryProvider.cs" />
-    <Compile Include="Infrastructure\IDbAsyncQueryProviderExtensions.cs" />
     <Compile Include="Internal\ConfigFile\ProviderCollection.cs" />
     <Compile Include="Internal\ConfigFile\ProviderElement.cs" />
-    <Compile Include="Internal\DefaultCommandInterceptor.cs" />
-    <Compile Include="Internal\IDbCommandInterceptor.cs" />
+    <Compile Include="Infrastructure\Interception.cs" />
+    <Compile Include="Infrastructure\IDbInterceptor.cs" />
     <Compile Include="Internal\IDbEnumerator.cs" />
     <Compile Include="Internal\DefaultModelCacheKey.cs" />
     <Compile Include="Internal\DefaultModelCacheKeyFactory.cs" />
     <Compile Include="Infrastructure\IDbModelCacheKey.cs" />
     <Compile Include="Infrastructure\IDbModelCacheKeyFactory.cs" />
     <Compile Include="Internal\InitializerConfig.cs" />
-    <Compile Include="Internal\InterceptedCommand.cs" />
     <Compile Include="Internal\LazyAsyncEnumerator.cs" />
     <Compile Include="Internal\LazyEnumerator`.cs" />
-    <Compile Include="Migrations\History\DefaultHistoryContextFactory.cs" />
-    <Compile Include="Migrations\History\IHistoryContextFactory.cs" />
     <Compile Include="Migrations\Infrastructure\MigrationsPendingException.cs" />
+    <Compile Include="Migrations\Model\CreateProcedureOperation.cs" />
+    <Compile Include="Migrations\Utilities\MigrationsConfigurationFinder.cs" />
     <Compile Include="ModelConfiguration\Configuration\ConfigurationTypeActivator.cs" />
     <Compile Include="ModelConfiguration\Configuration\ConfigurationTypeFilter.cs" />
     <Compile Include="ModelConfiguration\Configuration\ConfigurationTypesFinder.cs" />
@@ -389,16 +444,24 @@
     <Compile Include="ModelConfiguration\Configuration\Conventions\EntityConventionWithHavingConfiguration.cs" />
     <Compile Include="ModelConfiguration\Configuration\Conventions\PropertyConventionConfiguration.cs" />
     <Compile Include="ModelConfiguration\Configuration\Conventions\PropertyConventionWithHavingConfiguration.cs" />
+    <Compile Include="ModelConfiguration\Configuration\Functions\AssociationModificationFunctionConfiguration.cs" />
+    <Compile Include="ModelConfiguration\Configuration\Functions\LightweightDeleteModificationFunctionConfiguration.cs" />
+    <Compile Include="ModelConfiguration\Configuration\Functions\LightweightInsertModificationFunctionConfiguration.cs" />
+    <Compile Include="ModelConfiguration\Configuration\Functions\LightweightModificationFunctionConfiguration.cs" />
+    <Compile Include="ModelConfiguration\Configuration\Functions\LightweightModificationFunctionsConfiguration.cs" />
+    <Compile Include="ModelConfiguration\Configuration\Functions\LightweightUpdateModificationFunctionConfiguration.cs" />
+    <Compile Include="ModelConfiguration\Configuration\Functions\ManyToManyModificationFunctionConfiguration``.cs" />
+    <Compile Include="ModelConfiguration\Configuration\Functions\ManyToManyModificationFunctionsConfiguration``.cs" />
     <Compile Include="ModelConfiguration\Configuration\Functions\DeleteModificationFunctionConfiguration`.cs" />
     <Compile Include="ModelConfiguration\Configuration\Functions\InsertModificationFunctionConfiguration`.cs" />
     <Compile Include="ModelConfiguration\Configuration\Functions\UpdateModificationFunctionConfiguration`.cs" />
-    <Compile Include="ModelConfiguration\Configuration\Functions\FunctionParameterConfiguration.cs" />
     <Compile Include="ModelConfiguration\Configuration\Functions\ModificationFunctionConfiguration.cs" />
     <Compile Include="ModelConfiguration\Configuration\Functions\ModificationFunctionConfiguration`.cs" />
     <Compile Include="ModelConfiguration\Configuration\Functions\ModificationFunctionsConfiguration.cs" />
     <Compile Include="ModelConfiguration\Configuration\Functions\ModificationFunctionsConfiguration`.cs" />
     <Compile Include="ModelConfiguration\Configuration\Properties\Primitive\MissingPropertyConfiguration.cs" />
     <Compile Include="ModelConfiguration\Configuration\Properties\Primitive\LightweightPropertyConfiguration.cs" />
+    <Compile Include="ModelConfiguration\Configuration\TphColumnFixer.cs" />
     <Compile Include="ModelConfiguration\Configuration\Types\LightweightEntityConfiguration.cs" />
     <Compile Include="ModelConfiguration\Configuration\Types\LightweightEntityConfiguration`.cs" />
     <Compile Include="ModelConfiguration\Conventions\Configuration\Lightweight\EntityConvention.cs" />
@@ -410,16 +473,16 @@
     <Compile Include="ModelConfiguration\Conventions\Configuration\Lightweight\PropertyConvention.cs" />
     <Compile Include="ModelConfiguration\Conventions\Configuration\Lightweight\PropertyConventionBase.cs" />
     <Compile Include="ModelConfiguration\Conventions\Configuration\Lightweight\PropertyConventionWithHaving.cs" />
+    <Compile Include="ModelConfiguration\Edm\FunctionParameterExtensions.cs" />
+    <Compile Include="ModelConfiguration\Edm\EdmTypeExtensions.cs" />
     <Compile Include="ModelConfiguration\Edm\Services\ModificationFunctionMappingGenerator.cs" />
     <Compile Include="ModelConfiguration\Edm\Services\FunctionParameterMappingGenerator.cs" />
+    <Compile Include="Internal\ThrowingMonitor.cs" />
     <Compile Include="NullDatabaseInitializer.cs" />
-    <Compile Include="Internal\ProviderConfig.cs" />
     <Compile Include="Spatial\SpatialServicesLoader.cs" />
     <Compile Include="Utilities\BoolExtensions.cs" />
-    <Compile Include="Utilities\Check.cs" />
     <Compile Include="Utilities\DbModelExtensions.cs" />
     <Compile Include="Utilities\DbProviderFactoryExtensions.cs" />
-    <Compile Include="Utilities\DebugCheck.cs" />
     <Compile Include="Utilities\ExceptionExtensions.cs" />
     <Compile Include="Core\Common\FieldMetadata.cs" />
     <Compile Include="Core\Common\FieldNameLookup.cs" />
@@ -440,7 +503,6 @@
     <Compile Include="Core\Common\internal\materialization\translator.cs" />
     <Compile Include="Core\Common\internal\materialization\TranslatorArg.cs" />
     <Compile Include="Core\Common\internal\materialization\TranslatorResult.cs" />
-    <Compile Include="Core\Common\internal\materialization\util.cs" />
     <Compile Include="Core\Common\internal\MultipartIdentifier.cs" />
     <Compile Include="Core\Common\QueryCache\CompiledQueryCacheEntry.cs" />
     <Compile Include="Core\Common\QueryCache\CompiledQueryCacheKey.cs" />
@@ -937,7 +999,6 @@
     <Compile Include="Core\Objects\DataClasses\IEntityWithKey.cs" />
     <Compile Include="Core\Objects\DataClasses\IEntityWithRelationships.cs" />
     <Compile Include="Core\Objects\DataClasses\IRelatedEnd.cs" />
-    <Compile Include="Core\Objects\DataClasses\IRelatedEndExtensions.cs" />
     <Compile Include="Core\Objects\DataClasses\IRelationshipFixer.cs" />
     <Compile Include="Core\Objects\DataClasses\RelatedEnd.cs" />
     <Compile Include="Core\Objects\DataClasses\RelationshipFixer.cs" />
@@ -1043,10 +1104,7 @@
     <Compile Include="Core\Objects\SaveOptions.cs" />
     <Compile Include="Core\Objects\Span.cs" />
     <Compile Include="Core\Objects\SpanIndex.cs" />
-    <Compile Include="Core\Objects\SqlClient\SqlFunctions.cs" />
-    <Compile Include="Core\Objects\SqlClient\SqlSpatialFunctions.cs" />
     <Compile Include="Core\Objects\StateManagerMemberMetadata.cs" />
-    <Compile Include="Core\Objects\StateManagerValue.cs" />
     <Compile Include="Core\OptimisticConcurrencyException.cs" />
     <Compile Include="Core\PropertyConstraintException.cs" />
     <Compile Include="Core\ProviderIncompatibleException.cs" />
@@ -1297,7 +1355,6 @@
     <Compile Include="Internal\ModelHashCalculator.cs" />
     <Compile Include="Internal\MockingProxies\ObjectContextProxy.cs" />
     <Compile Include="Internal\RepositoryBase.cs" />
-    <Compile Include="IQueryableExtensions.cs" />
     <Compile Include="MigrateDatabaseToLatestVersion`.cs" />
     <Compile Include="Migrations\Builders\ColumnBuilder.cs" />
     <Compile Include="Migrations\Builders\TableBuilder.cs" />
@@ -1307,12 +1364,11 @@
     <Compile Include="Migrations\DbMigrator.cs">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="Migrations\IDbSetExtensions.cs" />
+    <Compile Include="Migrations\DbSetMigrationsExtensions.cs" />
     <Compile Include="Migrations\Design\CSharpMigrationCodeGenerator.cs" />
     <Compile Include="Migrations\Design\MigrationCodeGenerator.cs" />
     <Compile Include="Migrations\Design\MigrationScaffolder.cs" />
     <Compile Include="Migrations\Design\ScaffoldedMigration.cs" />
-    <Compile Include="Migrations\Design\ToolingException.cs" />
     <Compile Include="Migrations\Design\ToolingFacade.cs">
       <SubType>Code</SubType>
     </Compile>
@@ -1320,16 +1376,14 @@
     <Compile Include="Migrations\Edm\EdmXNames.cs" />
     <Compile Include="Migrations\Edm\ModelCompressor.cs" />
     <Compile Include="Utilities\AssemblyExtensions.cs" />
-    <Compile Include="Utilities\ByteExtensions.cs" />
     <Compile Include="Utilities\DbContextExtensions.cs" />
     <Compile Include="Utilities\ExpressionExtensions.cs">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="Utilities\IEnumerableExtensions.cs" />
     <Compile Include="Utilities\MemberInfoExtensions.cs" />
     <Compile Include="Utilities\ProviderRowFinder.cs" />
-    <Compile Include="Utilities\StringExtensions.cs" />
     <Compile Include="Utilities\TaskHelper.cs" />
+    <Compile Include="Utilities\TypeFinder.cs" />
     <Compile Include="Utilities\XContainerExtensions.cs" />
     <Compile Include="Utilities\XDocumentExtensions.cs" />
     <Compile Include="Migrations\History\HistoryContext.cs" />
@@ -1373,10 +1427,6 @@
     <Compile Include="Migrations\Model\SqlOperation.cs" />
     <Compile Include="Migrations\Sql\MigrationSqlGenerator.cs" />
     <Compile Include="Migrations\Sql\MigrationStatement.cs" />
-    <Compile Include="Migrations\Sql\SqlCeMigrationSqlGenerator.cs">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="Migrations\Sql\SqlServerMigrationSqlGenerator.cs" />
     <Compile Include="Migrations\Utilities\ConfigurationFileUpdater.cs" />
     <Compile Include="Migrations\Utilities\DatabaseCreator.cs" />
     <Compile Include="ObservableCollectionExtensions.cs" />
@@ -1419,7 +1469,6 @@
     <Compile Include="Edm\Validation\DataModelErrorEventArgs.cs" />
     <Compile Include="Core\Mapping\ColumnMappingBuilder.cs" />
     <Compile Include="Core\Metadata\Edm\EdmModel.cs" />
-    <Compile Include="Core\Metadata\Edm\IQualifiedNameMetadataItem.cs" />
     <Compile Include="Edm\EdmModelVisitor.cs" />
     <Compile Include="Edm\Serialization\CsdlSerializer.cs" />
     <Compile Include="Edm\Serialization\MslSerializer.cs" />
@@ -1491,7 +1540,7 @@
     <Compile Include="Internal\DatabaseOperations.cs" />
     <Compile Include="Internal\DbContextTypesInitializersPair.cs" />
     <Compile Include="Internal\DbHelpers.cs" />
-    <Compile Include="Internal\DbLocalView`.cs" />
+    <Compile Include="Infrastructure\DbLocalView`.cs" />
     <Compile Include="Internal\DbSetDiscoveryService.cs" />
     <Compile Include="Internal\EagerInternalConnection.cs" />
     <Compile Include="Internal\EagerInternalContext.cs" />
@@ -1692,7 +1741,6 @@
     <Compile Include="ModelConfiguration\Mappers\TypeMapper.cs" />
     <Compile Include="ModelConfiguration\ModelValidationException.cs" />
     <Compile Include="ModelConfiguration\Utilities\AttributeProvider.cs" />
-    <Compile Include="Utilities\DatabaseName.cs" />
     <Compile Include="Utilities\DbConnectionExtensions.cs" />
     <Compile Include="Utilities\DbProviderInfoExtensions.cs" />
     <Compile Include="Utilities\DbProviderManifestExtensions.cs" />
@@ -1796,7 +1844,6 @@
   </ItemGroup>
   <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <Import Project="$(SolutionDir)\.nuget\nuget.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">

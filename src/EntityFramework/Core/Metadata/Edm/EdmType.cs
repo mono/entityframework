@@ -12,7 +12,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
     /// <summary>
     ///     Base EdmType class for all the model types
     /// </summary>
-    public abstract class EdmType : GlobalItem, IQualifiedNameMetadataItem
+    public abstract class EdmType : GlobalItem, INamedDataModelItem
     {
         internal static IEnumerable<T> SafeTraverseHierarchy<T>(T startFrom)
             where T : EdmType
@@ -75,6 +75,11 @@ namespace System.Data.Entity.Core.Metadata.Edm
         /// </summary>
         internal string CacheIdentity { get; private set; }
 
+        string INamedDataModelItem.Identity
+        {
+            get { return Identity; }
+        }
+
         /// <summary>
         ///     Returns the identity of the edm type
         /// </summary>
@@ -93,9 +98,8 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
         }
 
-        /// <summary>
-        ///     Returns the name of the EdmType
-        /// </summary>
+        /// <summary>Gets the name of this type.</summary>
+        /// <returns>The name of this type.</returns>
         [MetadataProperty(PrimitiveTypeKind.String, false)]
         public virtual String Name
         {
@@ -109,9 +113,8 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
         }
 
-        /// <summary>
-        ///     Returns the namespace of the EdmType
-        /// </summary>
+        /// <summary>Gets the namespace of this type.</summary>
+        /// <returns>The namespace of this type.</returns>
         [MetadataProperty(PrimitiveTypeKind.String, false)]
         public virtual String NamespaceName
         {
@@ -125,9 +128,8 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
         }
 
-        /// <summary>
-        ///     Returns true if the EdmType is abstract
-        /// </summary>
+        /// <summary>Gets a value indicating whether this type is abstract or not. </summary>
+        /// <returns>true if this type is abstract; otherwise, false. </returns>
         /// <exception cref="System.InvalidOperationException">Thrown if the setter is called on instance that is in ReadOnly state</exception>
         [MetadataProperty(PrimitiveTypeKind.Boolean, false)]
         public bool Abstract
@@ -141,13 +143,12 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
         }
 
-        /// <summary>
-        ///     Returns the base type of the EdmType
-        /// </summary>
+        /// <summary>Gets the base type of this type.</summary>
+        /// <returns>The base type of this type.</returns>
         /// <exception cref="System.InvalidOperationException">Thrown if the setter is called on instance that is in ReadOnly state</exception>
         /// <exception cref="System.ArgumentException">Thrown if the value passed in for setter will create a loop in the inheritance chain</exception>
         [MetadataProperty(BuiltInTypeKind.EdmType, false)]
-        public EdmType BaseType
+        public virtual EdmType BaseType
         {
             get { return _baseType; }
             internal set
@@ -175,12 +176,8 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
         }
 
-        /// <summary>
-        ///     Returns the full name of this type, which is namespace + "." + name.
-        ///     Since the identity of all EdmTypes, except EdmFunction, is same as of that
-        ///     of the full name, FullName just returns the identity. This property is
-        ///     over-ridden in EdmFunctin, just to return NamespaceName + "." + Name
-        /// </summary>
+        /// <summary>Gets the full name of this type.</summary>
+        /// <returns>The full name of this type. </returns>
         public virtual string FullName
         {
             get { return Identity; }
@@ -248,10 +245,8 @@ namespace System.Data.Entity.Core.Metadata.Edm
             type.Abstract = isAbstract;
         }
 
-        /// <summary>
-        ///     Overriding System.Object.ToString to provide better String representation
-        ///     for this type.
-        /// </summary>
+        /// <summary>Returns the full name of this type.</summary>
+        /// <returns>The full name of this type. </returns>
         public override string ToString()
         {
             // Note that ToString is actually used to get the full name of the type, so changing the value returned here
@@ -260,8 +255,11 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     Returns the collection type whose element type is this edm type
+        ///     Returns an instance of the <see cref="T:System.Data.Entity.Core.Metadata.Edm.CollectionType" /> whose element type is this type.
         /// </summary>
+        /// <returns>
+        ///     The <see cref="T:System.Data.Entity.Core.Metadata.Edm.CollectionType" /> object whose element type is this type.
+        /// </returns>
         [SuppressMessage("Microsoft.Design", "CA1024:UsePropertiesWhereAppropriate")]
         public CollectionType GetCollectionType()
         {

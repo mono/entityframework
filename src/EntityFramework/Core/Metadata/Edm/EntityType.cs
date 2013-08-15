@@ -17,18 +17,11 @@ namespace System.Data.Entity.Core.Metadata.Edm
     {
         private ReadOnlyMetadataCollection<EdmProperty> _properties;
 
-        internal EntityType()
-            : this("E", "N", DataSpace.CSpace)
-        {
-            // testing only
-        }
-
         /// <summary>
         ///     Initializes a new instance of Entity Type
         /// </summary>
         /// <param name="name"> name of the entity type </param>
         /// <param name="namespaceName"> namespace of the entity type </param>
-        /// <param name="version"> version of the entity type </param>
         /// <param name="dataSpace"> dataspace in which the EntityType belongs to </param>
         /// <exception cref="System.ArgumentNullException">Thrown if either name, namespace or version arguments are null</exception>
         internal EntityType(string name, string namespaceName, DataSpace dataSpace)
@@ -38,7 +31,6 @@ namespace System.Data.Entity.Core.Metadata.Edm
 
         /// <param name="name"> name of the entity type </param>
         /// <param name="namespaceName"> namespace of the entity type </param>
-        /// <param name="version"> version of the entity type </param>
         /// <param name="dataSpace"> dataspace in which the EntityType belongs to </param>
         /// <param name="members"> members of the entity type [property and navigational property] </param>
         /// <param name="keyMemberNames"> key members for the type </param>
@@ -98,18 +90,15 @@ namespace System.Data.Entity.Core.Metadata.Edm
             _foreignKeyBuilders.Add(foreignKeyBuilder);
         }
 
-        public ReadOnlyMetadataCollection<EdmProperty> DeclaredKeyProperties
-        {
-            get
-            {
-                return new ReadOnlyMetadataCollection<EdmProperty>(
-                    KeyMembers.Where(km => DeclaredMembers.Contains(km)).Cast<EdmProperty>().ToList());
-            }
-        }
-
         /// <summary>
-        ///     Returns the kind of the type
+        ///     Gets the built-in type kind for this <see cref="T:System.Data.Entity.Core.Metadata.Edm.EntityType" />.
         /// </summary>
+        /// <returns>
+        ///     A <see cref="T:System.Data.Entity.Core.Metadata.Edm.BuiltInTypeKind" /> object that represents the built-in type kind for this
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Metadata.Edm.EntityType" />
+        ///     .
+        /// </returns>
         public override BuiltInTypeKind BuiltInTypeKind
         {
             get { return BuiltInTypeKind.EntityType; }
@@ -135,8 +124,14 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     Returns the list of Navigation Properties for this entity type
+        ///     Gets the navigation properties of this <see cref="T:System.Data.Entity.Core.Metadata.Edm.EntityType" />.
         /// </summary>
+        /// <returns>
+        ///     A collection of type <see cref="T:System.Data.Entity.Core.Metadata.Edm.ReadOnlyMetadataCollection`1" /> that contains the list of navigation properties on this
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Metadata.Edm.EntityType" />
+        ///     .
+        /// </returns>
         public ReadOnlyMetadataCollection<NavigationProperty> NavigationProperties
         {
             get
@@ -157,9 +152,14 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     Returns just the properties from the collection
-        ///     of members on this type
+        ///     Gets the list of properties for this <see cref="T:System.Data.Entity.Core.Metadata.Edm.EntityType" />.
         /// </summary>
+        /// <returns>
+        ///     A collection of type <see cref="T:System.Data.Entity.Core.Metadata.Edm.ReadOnlyMetadataCollection`1" /> that contains the list of properties for this
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Metadata.Edm.EntityType" />
+        ///     .
+        /// </returns>
         public virtual ReadOnlyMetadataCollection<EdmProperty> Properties
         {
             get
@@ -182,9 +182,17 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     Returns the Reference type pointing to this entity type
+        ///     Returns a <see cref="T:System.Data.Entity.Core.Metadata.Edm.RefType" /> object that references this
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Metadata.Edm.EntityType" />
+        ///     .
         /// </summary>
-        /// <returns> </returns>
+        /// <returns>
+        ///     A <see cref="T:System.Data.Entity.Core.Metadata.Edm.RefType" /> object that references this
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Metadata.Edm.EntityType" />
+        ///     .
+        /// </returns>
         [SuppressMessage("Microsoft.Design", "CA1024:UsePropertiesWhereAppropriate")]
         public RefType GetReferenceType()
         {
@@ -236,6 +244,50 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
             navigationProperty = null;
             return false;
+        }
+
+        /// <summary>
+        ///     The factory method for constructing the EntityType object.
+        /// </summary>
+        /// <param name="name">The name of the entity type.</param>
+        /// <param name="namespaceName">The namespace of the entity type.</param>
+        /// <param name="dataSpace">The dataspace in which the EntityType belongs to.</param>
+        /// <param name="members">Members of the entity type (primitive and navigation properties).</param>
+        /// <param name="keyMemberNames">Name of key members for the type.</param>
+        /// <param name="metadataProperties">Metadata properties to be associated with the instance.</param>
+        /// <exception cref="System.ArgumentException">Thrown if either name, namespace arguments are null.</exception>
+        /// <notes>The newly created EntityType will be read only.</notes>
+        public static EntityType Create(
+            string name,
+            string namespaceName,
+            DataSpace dataSpace,
+            IEnumerable<string> keyMemberNames,
+            IEnumerable<EdmMember> members,
+            IEnumerable<MetadataProperty> metadataProperties)
+        {
+            Check.NotNull(name, "name");
+            Check.NotNull(namespaceName, "namespaceName");
+
+            var entity = new EntityType(name, namespaceName, dataSpace, keyMemberNames, members);
+
+            if (metadataProperties != null)
+            {
+                entity.AddMetadataProperties(metadataProperties.ToList());
+            }
+
+            entity.SetReadOnly();
+            return entity;
+        }
+
+        /// <summary>
+        ///     Adds the specified navigation property to the members of this type.
+        ///     The navigation property is added regardless of the read-only flag.
+        /// </summary>
+        /// <param name="property">The navigation property to be added.</param>
+        [SuppressMessage("Microsoft.Design", "CA1011:ConsiderPassingBaseTypesAsParameters")]
+        public void AddNavigationProperty(NavigationProperty property)
+        {
+            AddMember(property, true);
         }
     }
 }

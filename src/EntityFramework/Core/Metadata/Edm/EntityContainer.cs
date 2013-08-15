@@ -2,10 +2,12 @@
 
 namespace System.Data.Entity.Core.Metadata.Edm
 {
+    using System.Collections.Generic;
     using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
     using System.Diagnostics;
     using System.Diagnostics.CodeAnalysis;
+    using System.Linq;
 
     /// <summary>
     ///     Class for representing an entity container
@@ -16,10 +18,9 @@ namespace System.Data.Entity.Core.Metadata.Edm
         private readonly ReadOnlyMetadataCollection<EntitySetBase> _baseEntitySets;
         private readonly ReadOnlyMetadataCollection<EdmFunction> _functionImports;
 
-        // For testing only
         internal EntityContainer()
-            : this("C", DataSpace.CSpace)
         {
+            // mocking only
         }
 
         /// <summary>
@@ -41,8 +42,14 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     Returns the kind of the type
+        ///     Gets the built-in type kind for this <see cref="T:System.Data.Entity.Core.Metadata.Edm.EntityContainer" />.
         /// </summary>
+        /// <returns>
+        ///     A <see cref="T:System.Data.Entity.Core.Metadata.Edm.BuiltInTypeKind" /> object that represents the built-in type kind for this
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Metadata.Edm.EntityContainer" />
+        ///     .
+        /// </returns>
         public override BuiltInTypeKind BuiltInTypeKind
         {
             get { return BuiltInTypeKind.EntityContainer; }
@@ -57,8 +64,11 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     Get the name of this EntityContainer object
+        ///     Gets the name of this <see cref="T:System.Data.Entity.Core.Metadata.Edm.EntityContainer" />.
         /// </summary>
+        /// <returns>
+        ///     The name of this <see cref="T:System.Data.Entity.Core.Metadata.Edm.EntityContainer" />.
+        /// </returns>
         [MetadataProperty(PrimitiveTypeKind.String, false)]
         public virtual String Name
         {
@@ -73,8 +83,17 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     Gets the collection of entity sets
+        ///     Gets a list of entity sets and association sets that this
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Metadata.Edm.EntityContainer" />
+        ///     includes.
         /// </summary>
+        /// <returns>
+        ///     A <see cref="T:System.Data.Entity.Core.Metadata.Edm.ReadOnlyMetadataCollection`1" /> object that contains a list of entity sets and association sets that this
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Metadata.Edm.EntityContainer" />
+        ///     includes.
+        /// </returns>
         [MetadataProperty(BuiltInTypeKind.EntitySetBase, true)]
         public ReadOnlyMetadataCollection<EntitySetBase> BaseEntitySets
         {
@@ -100,8 +119,14 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     Gets the collection of function imports for this entity container
+        ///     Specifies a collection of <see cref="T:System.Data.Entity.Core.Metadata.Edm.EdmFunction" /> elements. Each function contains the details of a stored procedure that exists in the database or equivalent CommandText that is mapped to an entity and its properties.
         /// </summary>
+        /// <returns>
+        ///     A <see cref="T:System.Data.Entity.Core.Metadata.Edm.ReadOnlyMetadataCollection`1" /> that contains
+        ///     <see
+        ///         cref="T:System.Data.Entity.Core.Metadata.Edm.EdmFunction" />
+        ///     elements.
+        /// </returns>
         [MetadataProperty(BuiltInTypeKind.EdmFunction, true)]
         public ReadOnlyMetadataCollection<EdmFunction> FunctionImports
         {
@@ -122,11 +147,13 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     Get the entity set with the given name
+        ///     Returns an <see cref="T:System.Data.Entity.Core.Metadata.Edm.EntitySet" /> object by using the specified name for the entity set.
         /// </summary>
-        /// <param name="name"> name of the entity set to look up for </param>
-        /// <param name="ignoreCase"> true if you want to do a case-insensitive lookup </param>
-        /// <returns> </returns>
+        /// <returns>
+        ///     An <see cref="T:System.Data.Entity.Core.Metadata.Edm.EntitySet" /> object that represents the entity set that has the specified name.
+        /// </returns>
+        /// <param name="name">The name of the entity set that is searched for.</param>
+        /// <param name="ignoreCase">true to perform the case-insensitive search; otherwise, false.</param>
         public EntitySet GetEntitySetByName(string name, bool ignoreCase)
         {
             var entitySet = (BaseEntitySets.GetValue(name, ignoreCase) as EntitySet);
@@ -138,13 +165,14 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     Get the entity set with the given name or return null if not found
+        ///     Returns an <see cref="T:System.Data.Entity.Core.Metadata.Edm.EntitySet" /> object by using the specified name for the entity set.
         /// </summary>
-        /// <param name="name"> name of the entity set to look up for </param>
-        /// <param name="ignoreCase"> true if you want to do a case-insensitive lookup </param>
-        /// <param name="entitySet"> out parameter that will contain the result </param>
-        /// <returns> </returns>
-        /// <exception cref="System.ArgumentNullException">if name argument is null</exception>
+        /// <returns>true if there is an entity set that matches the search criteria; otherwise, false.</returns>
+        /// <param name="name">The name of the entity set that is searched for.</param>
+        /// <param name="ignoreCase">true to perform the case-insensitive search; otherwise, false.</param>
+        /// <param name="entitySet">
+        ///     When this method returns, contains an <see cref="T:System.Data.Entity.Core.Metadata.Edm.EntitySet" /> object. If there is no entity set, this output parameter contains null.
+        /// </param>
         public bool TryGetEntitySetByName(string name, bool ignoreCase, out EntitySet entitySet)
         {
             Check.NotNull(name, "name");
@@ -162,11 +190,13 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     Get the relationship set with the given name
+        ///     Returns a <see cref="T:System.Data.Entity.Core.Metadata.Edm.RelationshipSet" /> object by using the specified name for the relationship set.
         /// </summary>
-        /// <param name="name"> name of the relationship set to look up for </param>
-        /// <param name="ignoreCase"> true if you want to do a case-insensitive lookup </param>
-        /// <returns> </returns>
+        /// <returns>
+        ///     An <see cref="T:System.Data.Entity.Core.Metadata.Edm.RelationshipSet" /> object that represents the relationship set that has the specified name.
+        /// </returns>
+        /// <param name="name">The name of the relationship set that is searched for.</param>
+        /// <param name="ignoreCase">true to perform the case-insensitive search; otherwise, false.</param>
         public RelationshipSet GetRelationshipSetByName(string name, bool ignoreCase)
         {
             RelationshipSet relationshipSet;
@@ -178,13 +208,14 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     Get the relationship set with the given name
+        ///     Returns a <see cref="T:System.Data.Entity.Core.Metadata.Edm.RelationshipSet" /> object by using the specified name for the relationship set.
         /// </summary>
-        /// <param name="name"> name of the relationship set to look up for </param>
-        /// <param name="ignoreCase"> true if you want to do a case-insensitive lookup </param>
-        /// <param name="relationshipSet"> out parameter that will have the result </param>
-        /// <returns> </returns>
-        /// <exception cref="System.ArgumentNullException">if name argument is null</exception>
+        /// <returns>true if there is a relationship set that matches the search criteria; otherwise, false. </returns>
+        /// <param name="name">The name of the relationship set that is searched for.</param>
+        /// <param name="ignoreCase">true to perform the case-insensitive search; otherwise, false.</param>
+        /// <param name="relationshipSet">
+        ///     When this method returns, contains a <see cref="T:System.Data.Entity.Core.Metadata.Edm.RelationshipSet" /> object.
+        /// </param>
         public bool TryGetRelationshipSetByName(string name, bool ignoreCase, out RelationshipSet relationshipSet)
         {
             Check.NotNull(name, "name");
@@ -202,9 +233,11 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        ///     Overriding System.Object.ToString to provide better String representation
-        ///     for this type.
+        ///     Returns the name of this <see cref="T:System.Data.Entity.Core.Metadata.Edm.EntityContainer" />.
         /// </summary>
+        /// <returns>
+        ///     The name of this <see cref="T:System.Data.Entity.Core.Metadata.Edm.EntityContainer" />.
+        /// </returns>
         public override string ToString()
         {
             return Name;
@@ -229,6 +262,59 @@ namespace System.Data.Entity.Core.Metadata.Edm
             DebugCheck.NotNull(function);
             Debug.Assert(function.IsFunctionImport, "function.IsFunctionImport");
             _functionImports.Source.Add(function);
+        }
+
+        /// <summary>
+        ///     The factory method for constructing the EntityContainer object.
+        /// </summary>
+        /// <param name="name">The name of the entity container to be created.</param>
+        /// <param name="dataSpace">DataSpace in which this entity container belongs to.</param>
+        /// <param name="entitySets">Entity sets that will be included in the new container. Can be null.</param>
+        /// <param name="functionImports">Functions that will be included in the new container. Can be null.</param>
+        /// <param name="metadataProperties">Metadata properties to be associated with the instance.</param>
+        /// <exception cref="System.ArgumentException">Thrown if the name argument is null or empty string.</exception>
+        /// <notes>The newly created EntityContainer will be read only.</notes>
+        public static EntityContainer Create(
+            string name, DataSpace dataSpace, IEnumerable<EntitySetBase> entitySets,
+            IEnumerable<EdmFunction> functionImports, IEnumerable<MetadataProperty> metadataProperties)
+        {
+            Check.NotEmpty(name, "name");
+
+            var entityContainer = new EntityContainer(name, dataSpace);
+
+            if (entitySets != null)
+            {
+                foreach (var entitySet in entitySets)
+                {
+                    entityContainer.AddEntitySetBase(entitySet);
+                }
+            }
+
+            if (functionImports != null)
+            {
+                foreach (var function in functionImports)
+                {
+                    if (!function.IsFunctionImport)
+                    {
+                        throw new ArgumentException(Strings.OnlyFunctionImportsCanBeAddedToEntityContainer(function.Name));
+                    }
+                    entityContainer.AddFunctionImport(function);
+                }
+            }
+
+            if (metadataProperties != null)
+            {
+                entityContainer.AddMetadataProperties(metadataProperties.ToList());
+            }
+
+            entityContainer.SetReadOnly();
+
+            return entityContainer;
+        }
+
+        internal virtual void NotifyItemIdentityChanged()
+        {
+            _baseEntitySets.Source.InvalidateCache();
         }
     }
 }
